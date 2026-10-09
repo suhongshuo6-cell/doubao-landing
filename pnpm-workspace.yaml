@@ -1,0 +1,5 @@
+# pnpm 10+ 默认不执行依赖的构建脚本。esbuild 需要它来放置平台二进制，
+# 否则 vite 起不来、或构建中途卡死（不报错，只是挂着）。
+# 说明：pnpm 11 读这里的 allowBuilds；package.json 的 pnpm.onlyBuiltDependencies 是给 pnpm 10 的。
+allowBuilds:
+  esbuild: true

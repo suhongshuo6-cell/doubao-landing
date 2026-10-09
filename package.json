@@ -1,0 +1,29 @@
+{
+  "name": "doubao-tribute-landing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "豆包 · 非官方致敬单页 — Vite + TypeScript + Three.js + GSAP + Lenis",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "verify": "node tools/verify.mjs",
+    "check:flash": "node tools/check-flash.mjs",
+    "perf": "node tools/perf.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "gsap": "^3.15.0",
+    "lenis": "^1.3.26",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "playwright": "^1.64.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.7"
+  }
+}

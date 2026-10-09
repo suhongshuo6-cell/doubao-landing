@@ -1,301 +1,410 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>豆包 Doubao · 她在这里，等你开口</title>
-<meta name="description" content="豆包 AI 助手概念落地页 —— 一张会呼吸的立绘，滚动即运镜。会听、会说、会看、会记。" />
-<meta name="theme-color" content="#F3F1EC" />
-<meta name="color-scheme" content="light" />
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light only" />
+    <meta name="theme-color" content="#FBFBFD" />
+    <title>豆包 · 把想法，说给豆包听 — 非官方致敬</title>
+    <meta
+      name="description"
+      content="一个非官方的豆包致敬单页：Three.js 实时舞台、电影化的取景运镜、可以在脸上捏出弹性形变。个人学习作品，与字节跳动无关。"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到主要内容</a>
 
-<meta property="og:type" content="website" />
-<meta property="og:title" content="豆包 Doubao · 她在这里，等你开口" />
-<meta property="og:description" content="一张会呼吸的立绘，滚动即运镜。" />
-<meta property="og:image" content="./assets/og.png" />
-<meta name="twitter:card" content="summary_large_image" />
+    <!-- 层级：背景 0 / 角色画布 1 / 内容 2 / 固定 UI 3 -->
+    <div class="bg-wash" aria-hidden="true"></div>
+    <canvas id="stage" class="stage" aria-hidden="true"></canvas>
 
-<link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
-<link rel="stylesheet" href="./styles/main.css" />
-</head>
-
-<body class="is-loading">
-
-<!-- ══════════ 加载屏 ══════════ -->
-<div id="loader" class="loader" role="status" aria-live="polite">
-  <div class="loader__inner">
-    <div class="loader__mark" aria-hidden="true">豆</div>
-    <div class="loader__title">DOUBAO</div>
-    <div class="loader__bar"><i id="loaderBar"></i></div>
-    <div class="loader__meta">
-      <span id="loaderStage">正在唤醒虚拟形象</span>
-      <span><b id="loaderPct">0</b>%</span>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════ 3D 舞台 ══════════ -->
-<canvas id="gl" aria-hidden="true"></canvas>
-<div id="vignette" aria-hidden="true"></div>
-<div id="scanlines" aria-hidden="true"></div>
-
-<!-- 无 WebGL 回退 -->
-<div id="fallback" class="fallback" hidden>
-  <div class="fallback__card">
-    <h2>你的浏览器暂不支持 WebGL</h2>
-    <p>没关系，内容一样不少 —— 建议使用最新版 Chrome / Edge / Safari 获得完整体验。</p>
-    <a class="btn btn--primary" href="#s-download">直接看介绍</a>
-  </div>
-</div>
-
-<div id="wakeHint" class="wake" role="button" tabindex="0" aria-label="跳过开场动画" hidden><span>跳过开场 ›</span></div>
-
-<!-- ══════════ 自定义光标 ══════════ -->
-<div id="cursor" class="cursor" aria-hidden="true">
-  <span class="cursor__ring"></span>
-  <span class="cursor__dot"></span>
-  <span class="cursor__label">捏</span>
-</div>
-
-<!-- ══════════ 顶栏 ══════════ -->
-<header id="topbar" class="topbar">
-  <a class="brand" href="#s-hero" aria-label="回到顶部">
-    <span class="brand__logo" aria-hidden="true">豆</span>
-    <span class="brand__text">
-      <b>豆包</b>
-      <em>DOUBAO</em>
-    </span>
-  </a>
-
-  <nav class="topnav" aria-label="章节导航">
-    <a href="#s-face" data-nav="face">面容</a>
-    <a href="#s-neck" data-nav="neck">颈肩</a>
-    <a href="#s-waist" data-nav="waist">腰线</a>
-    <a href="#s-arms" data-nav="arms">手臂</a>
-    <a href="#s-legs" data-nav="legs">长腿</a>
-    <a href="#s-feet" data-nav="feet">赤足</a>
-  </nav>
-
-  <div class="topbar__actions">
-    <button id="soundToggle" class="icon-btn" type="button" aria-pressed="false" aria-label="开关环境音效">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7"/><path class="wave" d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
-    </button>
-    <button id="qualityToggle" class="icon-btn" type="button" aria-label="切换画质档位">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
-    </button>
-    <a class="btn btn--ghost btn--sm" href="#s-download">立即体验</a>
-  </div>
-</header>
-
-<!-- ══════════ 左侧分镜刻度 ══════════ -->
-<aside id="reel" class="reel" aria-hidden="true">
-  <div class="reel__line"><i id="reelFill"></i></div>
-  <ul class="reel__ticks">
-    <li data-nav="hero"><i></i><span>开场</span></li>
-    <li data-nav="face"><i></i><span>面容</span></li>
-    <li data-nav="neck"><i></i><span>颈肩</span></li>
-    <li data-nav="chest"><i></i><span>心意</span></li>
-    <li data-nav="waist"><i></i><span>腰线</span></li>
-    <li data-nav="arms"><i></i><span>手臂</span></li>
-    <li data-nav="legs"><i></i><span>长腿</span></li>
-    <li data-nav="feet"><i></i><span>赤足</span></li>
-    <li data-nav="full"><i></i><span>全身</span></li>
-    <li data-nav="download"><i></i><span>下载</span></li>
-  </ul>
-</aside>
-
-<!-- ══════════ 当前分镜标签 ══════════ -->
-<div id="beatLabel" class="beatlabel" aria-hidden="true">
-  <span class="beatlabel__idx" id="beatIdx">00</span>
-  <span class="beatlabel__name" id="beatName">开场</span>
-  <span class="beatlabel__en" id="beatEn">OVERTURE</span>
-</div>
-
-<!-- ══════════ 交互提示 ══════════ -->
-<div id="hintPinch" class="hintp" aria-hidden="true">
-  <span class="hintp__icon"></span>
-  <span class="hintp__text">按住她的脸 · 轻轻捏</span>
-</div>
-<div id="hintDrag" class="hintp hintp--drag" aria-hidden="true">
-  <span class="hintp__arrow">←</span>
-  <span class="hintp__text">左右拖动，绕到她身侧</span>
-  <span class="hintp__arrow">→</span>
-</div>
-
-<!-- ══════════ 滚动主流程 ══════════ -->
-<main id="flow">
-
-  <!-- 00 开场 -->
-  <section class="beat beat--hero" id="s-hero" data-beat="hero" data-idx="00" data-name="开场" data-en="OVERTURE">
-    <div class="hero">
-      <p class="hero__kicker reveal">字节跳动 · AI 助手</p>
-      <h1 class="hero__title">
-        <span class="line reveal">她在这里</span>
-        <span class="line reveal">等你开口</span>
-      </h1>
-      <p class="hero__sub reveal">会听 · 会说 · 会看 · 会记</p>
-    </div>
-    <div class="scrollcue" aria-hidden="true">
-      <span class="scrollcue__wheel"></span>
-      <span class="scrollcue__txt">向下滚动，靠近她</span>
-    </div>
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee__track">
-        <span>DOUBAO</span><span>·</span><span>虚拟形象</span><span>·</span><span>WEBGL</span><span>·</span><span>实时渲染</span><span>·</span><span>捏一下试试</span><span>·</span>
-        <span>DOUBAO</span><span>·</span><span>虚拟形象</span><span>·</span><span>WEBGL</span><span>·</span><span>实时渲染</span><span>·</span><span>捏一下试试</span><span>·</span>
+    <!-- 顶部 1px hairline 导航：滚过一屏后从透明渐显 -->
+    <header class="nav" id="nav">
+      <div class="nav__inner">
+        <a class="nav__brand" href="#hero" aria-label="回到顶部">
+          <span class="nav__mark">豆包</span>
+        </a>
+        <a class="nav__link" href="https://github.com/" target="_blank" rel="noopener noreferrer">
+          <span>GitHub</span>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+            <path
+              d="M4.5 11.5 11.5 4.5M6 4.5h5.5V10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </a>
       </div>
-    </div>
-  </section>
-
-  <!-- 01 面容 -->
-  <section class="beat beat--left" id="s-face" data-beat="face" data-idx="01" data-name="面容" data-en="THE FACE">
-    <div class="card">
-      <p class="card__idx">01 / 09</p>
-      <h2 class="card__title">初次见面</h2>
-      <p class="card__desc">一张会呼吸的脸。把光标移到她脸上，按住，轻轻拖动 —— 她会回应你。</p>
-      <ul class="tags"><li>捏脸交互</li><li>次表面散射</li><li>实时高光</li></ul>
-    </div>
-  </section>
-
-  <!-- 02 颈肩 -->
-  <section class="beat beat--right" id="s-neck" data-beat="neck" data-idx="02" data-name="颈肩" data-en="BREATH">
-    <div class="card">
-      <p class="card__idx">02 / 09</p>
-      <h2 class="card__title">呼吸之间</h2>
-      <p class="card__desc">真实的皮肤需要真实的光。颈侧与锁骨的高光会随呼吸缓慢流动。</p>
-      <ul class="tags"><li>顶点呼吸</li><li>边缘光</li><li>毛孔法线</li></ul>
-    </div>
-  </section>
-
-  <!-- 03 心意 -->
-  <section class="beat beat--left" id="s-chest" data-beat="chest" data-idx="03" data-name="心意" data-en="SHE LISTENS">
-    <div class="card">
-      <p class="card__idx">03 / 09</p>
-      <h2 class="card__title">她先听，再说</h2>
-      <p class="card__desc">一句话就能开始，不用打字。语音对话的每一次停顿，她都听得懂。</p>
-      <ul class="tags"><li>语音对话</li><li>实时打断</li><li>情绪识别</li></ul>
-    </div>
-  </section>
-
-  <!-- 04 腰线 -->
-  <section class="beat beat--right" id="s-waist" data-beat="waist" data-idx="04" data-name="腰线" data-en="SHE REMEMBERS">
-    <div class="card">
-      <p class="card__idx">04 / 09</p>
-      <h2 class="card__title">聊得越久，越懂你</h2>
-      <p class="card__desc">长期记忆让每一次对话都接得上上一次。她记得你的偏好、你的项目、你的口头禅。</p>
-      <ul class="tags"><li>长期记忆</li><li>个人知识库</li><li>跨设备</li></ul>
-    </div>
-  </section>
-
-  <!-- 05 手臂 -->
-  <section class="beat beat--left" id="s-arms" data-beat="arms" data-idx="05" data-name="手臂" data-en="SHE SPEAKS">
-    <div class="card">
-      <p class="card__idx">05 / 09</p>
-      <h2 class="card__title">她动手，你收工</h2>
-      <p class="card__desc">写文案、做图、改代码、整理表格 —— 交给她的手。</p>
-      <ul class="tags"><li>多模态创作</li><li>图像生成</li><li>代码助手</li></ul>
-    </div>
-  </section>
-
-  <!-- 06 长腿 -->
-  <section class="beat beat--right" id="s-legs" data-beat="legs" data-idx="06" data-name="长腿" data-en="SHE WALKS">
-    <div class="card">
-      <p class="card__idx">06 / 09</p>
-      <h2 class="card__title">走到你所在的每一个屏幕</h2>
-      <p class="card__desc">手机、平板、桌面、浏览器插件。同一个她，随时接上。</p>
-      <ul class="tags"><li>全平台</li><li>秒级同步</li><li>离线可用</li></ul>
-    </div>
-  </section>
-
-  <!-- 07 赤足 -->
-  <section class="beat beat--left" id="s-feet" data-beat="feet" data-idx="07" data-name="赤足" data-en="TOUCH GROUND">
-    <div class="card">
-      <p class="card__idx">07 / 09</p>
-      <h2 class="card__title">落到你脚下</h2>
-      <p class="card__desc">不是概念演示 —— 今天就能下载使用。</p>
-      <ul class="tags"><li>免费开始</li><li>开放平台</li><li>插件生态</li></ul>
-    </div>
-  </section>
-
-  <!-- 08 全身 · 卖点 -->
-  <section class="beat beat--full" id="s-full" data-beat="full" data-idx="08" data-name="全身" data-en="FULL VIEW">
-    <header class="grid-head">
-      <p class="card__idx">08 / 09</p>
-      <h2 class="htitle reveal">四个能力，一个人</h2>
     </header>
-    <div class="grid">
-      <article class="feat tile">
-        <span class="feat__no">01</span>
-        <h3>会听</h3>
-        <p>语音对话、实时打断、情绪识别。开口就行，不用组织语言。</p>
-      </article>
-      <article class="feat tile">
-        <span class="feat__no">02</span>
-        <h3>会说</h3>
-        <p>文案、翻译、剧本、代码。多模态创作，一个输入框全包。</p>
-      </article>
-      <article class="feat tile">
-        <span class="feat__no">03</span>
-        <h3>会看</h3>
-        <p>拍照、截图、传文件丢给她。图片、PDF、表格都能读懂。</p>
-      </article>
-      <article class="feat tile">
-        <span class="feat__no">04</span>
-        <h3>会记</h3>
-        <p>长期记忆与个人知识库。聊得越久，越不需要重复自己。</p>
-      </article>
-    </div>
-  </section>
 
-  <!-- 09 下载 -->
-  <section class="beat beat--download" id="s-download" data-beat="download" data-idx="09" data-name="下载" data-en="GET STARTED">
-    <div class="cta">
-      <p class="card__idx">09 / 09</p>
-      <h2 class="cta__title reveal">现在，和她说第一句话</h2>
-      <p class="cta__sub reveal">全平台免费下载 · 网页版免安装</p>
-      <div class="cta__row">
-        <a class="btn btn--primary magnetic" href="#" data-magnetic>
-          <span>App Store 下载</span><i class="shine"></i>
-        </a>
-        <a class="btn btn--ghost magnetic" href="#" data-magnetic>
-          <span>Android 下载</span><i class="shine"></i>
-        </a>
-        <a class="btn btn--ghost magnetic" href="#" data-magnetic>
-          <span>打开网页版</span><i class="shine"></i>
-        </a>
-      </div>
-      <div class="qr">
-        <div class="qr__box" aria-hidden="true"><span>扫码</span></div>
-        <p>手机扫码，直接下载豆包 App</p>
-      </div>
-    </div>
+    <!-- 右侧进度导航条：6 个取景节点，由 ui/progressRail.ts 按 cameraRig 的节点表生成 -->
+    <nav class="rail" id="rail" aria-label="取景导航">
+      <span class="rail__line" aria-hidden="true"><i class="rail__indicator" id="railIndicator"></i></span>
+      <ol class="rail__list" id="railList"></ol>
+    </nav>
 
-    <footer class="footer">
-      <div class="footer__brand">
-        <span class="brand__logo" aria-hidden="true">豆</span>
-        <div>
-          <b>豆包 Doubao</b>
-          <p>AI 助手概念落地页 · WebGL 实时渲染</p>
+    <main id="main">
+      <!-- ══ 1 / Hero ══ 版式：特写型（全出血 + 极大字号压在留白上） -->
+      <section class="s-hero" id="hero" data-anchor="0.00">
+        <div class="s-hero__brand">
+          <span class="hero__mark">豆包</span>
+          <span class="hero__note">非官方致敬 · 个人作品</span>
+        </div>
+
+        <div class="s-hero__claim">
+          <h1 class="hero__claim" data-reveal-lines="0.1">把想法，说给豆包听。</h1>
+        </div>
+
+        <div class="s-hero__scroll" id="scrollHint" aria-hidden="true">
+          <span class="hero__scroll-line"></span>
+          <svg class="hero__scroll-arrow" viewBox="0 0 12 16" width="12" height="16" focusable="false">
+            <path
+              d="M6 1v13M1.5 9.5 6 14l4.5-4.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="hero__scroll-label">向下滚动</span>
+        </div>
+      </section>
+
+      <!-- ══ 2 / 定位 ══ 版式：不对称双栏（文字栏窄 700px + 右侧留白给角色半身入画） -->
+      <section class="s-pos" id="positioning" data-anchor="0.18">
+        <div class="s-pos__grid wrap">
+          <div class="s-pos__copy">
+            <p class="eyebrow" data-reveal>定位</p>
+            <p class="lede" data-reveal-lines>
+              豆包是字节跳动推出的 AI 助手，把对话、写作、阅读、创作与搜索收进同一个入口。你不必先学会怎么提问，像跟人说话那样开口就好。
+            </p>
+            <dl class="facts" data-reveal data-reveal-delay="0.1">
+              <div class="facts__row">
+                <dt>入口</dt>
+                <dd>一个对话框</dd>
+              </div>
+              <div class="facts__row">
+                <dt>能力</dt>
+                <dd>对话 / 写作 / 阅读 / 创作 / 搜索</dd>
+              </div>
+              <div class="facts__row">
+                <dt>本页</dt>
+                <dd>非官方技术演示</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="s-pos__space" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <!-- ══ 3 / 四大能力 ══ 版式：横向滚动型（pin 一屏，卡片横向推移） -->
+      <section class="s-cap" id="capabilities" data-anchor="0.36">
+        <div class="s-cap__head wrap">
+          <p class="eyebrow" data-reveal>能力</p>
+          <h2 class="s-cap__title" data-reveal-lines>四件事，她做起来都像说话一样顺。</h2>
+        </div>
+
+        <div class="s-cap__viewport" id="capViewport">
+          <div class="s-cap__track" id="capTrack">
+            <article class="cap-card" data-cap="dialog" data-vel-tilt>
+              <div class="cap-card__top">
+                <span class="cap-card__index">01</span>
+                <h3 class="cap-card__title">多轮对话与复杂推理</h3>
+              </div>
+              <p class="cap-card__text">接着说下去就好。上下文会留住，追问、改口、加条件都不必从头再来。</p>
+              <div class="cap-demo" data-demo="dialog" aria-hidden="true">
+                <div class="demo-line">
+                  <span class="demo-typed" data-typewriter>帮我拆一下这个季度的增长目标</span><span class="demo-caret"></span>
+                </div>
+                <div class="demo-thinking"><i></i><i></i><i></i><span class="demo-thinking__label">正在思考</span></div>
+              </div>
+            </article>
+
+            <article class="cap-card" data-cap="file" data-vel-tilt>
+              <div class="cap-card__top">
+                <span class="cap-card__index">02</span>
+                <h3 class="cap-card__title">文件与多模态理解</h3>
+              </div>
+              <p class="cap-card__text">PDF、表格、图片直接丢进来。她读完再回答，而不是让你先复述一遍。</p>
+              <div class="cap-demo" data-demo="file" aria-hidden="true">
+                <div class="demo-sheet" data-sheet>
+                  <span class="demo-sheet__fold"></span>
+                  <span class="demo-sheet__lines"></span>
+                  <span class="demo-sheet__name">季度复盘.pdf</span>
+                </div>
+                <div class="demo-progress"><i class="demo-progress__bar" data-progress></i></div>
+                <span class="demo-progress__label" data-progress-label>待解析</span>
+              </div>
+            </article>
+
+            <article class="cap-card" data-cap="image" data-vel-tilt>
+              <div class="cap-card__top">
+                <span class="cap-card__index">03</span>
+                <h3 class="cap-card__title">图像生成与编辑</h3>
+              </div>
+              <p class="cap-card__text">一句话改一张图：换背景、补光线、扩画幅，改到满意为止。</p>
+              <div class="cap-demo" data-demo="image" aria-hidden="true">
+                <div class="demo-pixels" data-pixels></div>
+                <span class="demo-pixels__label" data-pixels-label>等待生成</span>
+              </div>
+            </article>
+
+            <article class="cap-card" data-cap="voice" data-vel-tilt>
+              <div class="cap-card__top">
+                <span class="cap-card__index">04</span>
+                <h3 class="cap-card__title">实时语音与联网搜索</h3>
+              </div>
+              <p class="cap-card__text">开口就能聊。需要最新信息时，她自己去看一眼再回来告诉你。</p>
+              <div class="cap-demo" data-demo="voice" aria-hidden="true">
+                <div class="demo-wave" data-wave></div>
+                <span class="demo-wave__label">等待语音输入</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ 4 / 场景 ══ 版式：通栏叙事型（三段横带 + hairline 分隔，左右不对齐） -->
+      <section class="s-scenes" id="scenes" data-anchor="0.54">
+        <div class="s-scenes__head wrap">
+          <p class="eyebrow" data-reveal>场景</p>
+          <h2 class="s-scenes__title" data-reveal-lines>一天里真正会用到她的三个时刻。</h2>
+        </div>
+
+        <ol class="scenes">
+          <li class="scene" data-reveal>
+            <div class="scene__info">
+              <span class="scene__index">学习</span>
+              <h3 class="scene__title">先要思路，再要答案</h3>
+              <p class="scene__text">一道题卡住的时候，先问思路，再问步骤，最后让她出两道同类题，自己再走一遍。</p>
+            </div>
+            <div class="scene__thread">
+              <p class="bubble bubble--user">这道题为什么要先求导？</p>
+              <p class="bubble bubble--ai">因为它问的是"变化最快的那一点"。求导得到的是变化率，把变化率设为零，就找到了极值所在。</p>
+              <p class="bubble bubble--user">那如果区间是闭的，端点还要不要算？</p>
+              <p class="bubble bubble--ai">要算。闭区间上的极值可能落在端点，所以要比三类候选：驻点、不可导点、区间端点。</p>
+            </div>
+          </li>
+
+          <li class="scene" data-reveal>
+            <div class="scene__info">
+              <span class="scene__index">写作</span>
+              <h3 class="scene__title">从大纲到成稿，都在同一段对话里</h3>
+              <p class="scene__text">风格可以随时改，长度可以随时砍，改完的东西不必再复制到另一个工具。</p>
+            </div>
+            <div class="scene__thread">
+              <p class="bubble bubble--user">这份周报太长了，压到三百字。</p>
+              <p class="bubble bubble--ai">已压到 286 字。保留三条结论和两个风险点，删掉了过程描述。</p>
+              <p class="bubble bubble--user">语气再客观一点，把"显著提升"换掉。</p>
+              <p class="bubble bubble--ai">改好了。现在写的是"环比提升 12%"，并补了一句口径说明。</p>
+            </div>
+          </li>
+
+          <li class="scene" data-reveal>
+            <div class="scene__info">
+              <span class="scene__index">日常事务</span>
+              <h3 class="scene__title">把琐碎压缩成一次对话</h3>
+              <p class="scene__text">订行程、比选项、整理信息，来回确认的那几轮，交给她。</p>
+            </div>
+            <div class="scene__thread">
+              <p class="bubble bubble--user">周四下午去杭州，当天回来，帮我看怎么安排。</p>
+              <p class="bubble bubble--ai">给了你两个方案：早班去晚班回，中间留 4 小时；或者高铁往返，路上多一小时，但不用提前到机场。</p>
+              <p class="bubble bubble--user">第二个吧，顺便把下午的会议时间标出来。</p>
+              <p class="bubble bubble--ai">好，行程已排到 18:40。需要我把它整理成一页清单吗？</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ══ 5 / 数字带 ══ 版式：通栏数据型（一排数据 + 横向分割线 + 极简文字） -->
+      <section class="s-num" id="numbers" data-anchor="0.68">
+        <div class="s-num__row">
+          <div class="num">
+            <span class="num__value" data-count="1">1</span>
+            <span class="num__unit">个</span>
+            <span class="num__key">对话入口</span>
+          </div>
+          <div class="num">
+            <span class="num__value" data-count="5">5</span>
+            <span class="num__unit">类</span>
+            <span class="num__key">日常任务</span>
+          </div>
+          <div class="num">
+            <span class="num__value" data-count="2">2</span>
+            <span class="num__unit">种</span>
+            <span class="num__key">自然交互</span>
+          </div>
+          <div class="num">
+            <span class="num__value" data-count="0">0</span>
+            <span class="num__unit">次</span>
+            <span class="num__key">页面跳转</span>
+          </div>
+        </div>
+        <p class="s-num__note">以上为体验示意，非官方口径数据。</p>
+      </section>
+
+      <!-- ══ 6 / 全身取景 ══ 版式：大留白单侧克制型（scrub 绑相机，说明文字在右） -->
+      <section class="s-full" id="fullbody" data-anchor="0.92">
+        <div class="s-full__caption">
+          <p class="eyebrow">全身</p>
+          <p class="s-full__text">
+            黑色短上衣，红色围巾，黑色短裤，光脚。她站在浅色棚拍的墙面前，重心落在一条腿上。
+          </p>
+          <p class="s-full__hint">左右移动光标，可以绕到她侧面与背面。</p>
+        </div>
+      </section>
+
+      <!-- ══ 7 / 技术说明 ══ 版式：规格表型（左对齐 + 不等宽三栏 + 竖细线，刻意避开"居中标题 + 三卡片"） -->
+      <section class="s-tech" id="tech" data-anchor="1.00">
+        <div class="s-tech__head wrap">
+          <div>
+            <p class="eyebrow" data-reveal>实现</p>
+            <h2 class="s-tech__title" data-reveal-lines>这个页面是怎么做出来的。</h2>
+          </div>
+          <button
+            class="s-tech__toggle"
+            type="button"
+            id="techToggle"
+            aria-expanded="true"
+            aria-controls="techBody"
+          >
+            <span data-toggle-label>收起</span>
+            <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
+              <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="s-tech__body" id="techBody">
+          <div class="s-tech__grid wrap">
+            <div class="tech-col">
+              <h3 class="tech-col__title">Three.js 舞台</h3>
+              <ul class="tech-list">
+                <li>ACES Filmic 色调映射，曝光 1.05</li>
+                <li>PMREMGenerator 从自建渐变场景烘焙环境贴图，不下载 HDR 文件</li>
+                <li>三点布光：大面积 RectAreaLight 主光、冷白补光、背后轮廓光</li>
+                <li>MeshPhysicalMaterial：roughness 0.5 / clearcoat 0.06 / sheen 0.35</li>
+              </ul>
+            </div>
+            <div class="tech-col">
+              <h3 class="tech-col__title">GSAP + Lenis 编排</h3>
+              <ul class="tech-list">
+                <li>Lenis 交给 gsap.ticker 单帧驱动，关掉 lagSmoothing 消除抖动</li>
+                <li>临界阻尼弹簧：相机、指针、卡片全部走弹簧，而不是 lerp</li>
+                <li>滚动速度映射成卡片 ±3° 旋转、标题字距、视觉层位移</li>
+                <li>手写逐行切分，不依赖 SplitText 插件</li>
+              </ul>
+            </div>
+            <div class="tech-col">
+              <h3 class="tech-col__title">自研 pinch shader</h3>
+              <ul class="tech-list">
+                <li>面部用代理球做 raycast，不对整个模型打射线</li>
+                <li>onBeforeCompile 注入顶点形变：沿法线压入 + 压点局部横向扩散</li>
+                <li>形变在压点局部空间做，避免绕原点缩放把脸甩出画面</li>
+                <li>NdotL 换成 wrap 形式，柔化明暗交界，接近次表面散射</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ 8 / FAQ ══ 版式：问题清单型（左侧标题栏 + 右侧手风琴，grid-template-rows 动画） -->
+      <section class="s-faq" id="faq">
+        <div class="s-faq__grid wrap">
+          <div class="s-faq__rail">
+            <p class="eyebrow" data-reveal>FAQ</p>
+            <h2 class="s-faq__title" data-reveal-lines>几个大概会被问到的问题。</h2>
+          </div>
+          <div class="s-faq__list" data-reveal>
+            <div class="qa">
+              <h3 class="qa__h">
+                <button class="qa__btn" type="button" aria-expanded="false">
+                  <span>这是豆包的官方页面吗？</span>
+                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
+                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </h3>
+              <div class="qa__body"><div class="qa__inner"><p>不是。这是个人制作的非官方致敬页面，与字节跳动及其产品没有任何隶属或合作关系，「豆包」相关商标归其所有者所有。</p></div></div>
+            </div>
+            <div class="qa">
+              <h3 class="qa__h">
+                <button class="qa__btn" type="button" aria-expanded="false">
+                  <span>页面上的人是真人吗？</span>
+                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
+                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </h3>
+              <div class="qa__body"><div class="qa__inner"><p>不是。角色是第三方 AI 生成的虚拟形象，不基于任何真实人物的肖像或姓名。</p></div></div>
+            </div>
+            <div class="qa">
+              <h3 class="qa__h">
+                <button class="qa__btn" type="button" aria-expanded="false">
+                  <span>那些「能力演示」真的调用了接口吗？</span>
+                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
+                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </h3>
+              <div class="qa__body"><div class="qa__inner"><p>没有。打字机、解析进度、像素点阵、音频波形全部是纯前端动画，不发起任何网络请求，也没有接任何模型。</p></div></div>
+            </div>
+            <div class="qa">
+              <h3 class="qa__h">
+                <button class="qa__btn" type="button" aria-expanded="false">
+                  <span>页面里的数字是官方数据吗？</span>
+                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
+                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </h3>
+              <div class="qa__body"><div class="qa__inner"><p>不是。数据带上的数字是对页面自身结构的描述性示意，不代表任何官方口径或产品指标。</p></div></div>
+            </div>
+            <div class="qa">
+              <h3 class="qa__h">
+                <button class="qa__btn" type="button" aria-expanded="false">
+                  <span>可以直接拿去用吗？</span>
+                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
+                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </h3>
+              <div class="qa__body"><div class="qa__inner"><p>代码以 MIT 许可发布，可以自由使用。但请不要直接拿它冒充官方产品；替换掉品牌名称与角色素材之后，它就是一套普通的前端模板。</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ══ 9 / Footer ══ 版式：通栏收束型 -->
+    <footer class="s-foot" id="footer">
+      <div class="s-foot__grid wrap">
+        <div class="s-foot__legal">
+          <p>
+            本站为个人学习与致敬目的制作的技术演示，与字节跳动及其产品无关。页面内所有文案、数据、图像均为演示内容，不代表任何官方立场。角色形象为第三方生成的 AI 绘制素材。
+          </p>
+        </div>
+        <div class="s-foot__links">
+          <a href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub 仓库</a>
+          <a href="https://opensource.org/license/mit" target="_blank" rel="noopener noreferrer">MIT License</a>
+          <span class="s-foot__built">Built with Three.js / GSAP / Lenis</span>
         </div>
       </div>
-      <div class="footer__meta">
-        <p>本站为个人非商业技术演示，与字节跳动无隶属关系；“豆包”商标归其所有者所有。</p>
-        <p>页面中的虚拟形象为程序化生成的原创设计，不基于任何真实人物。© <span id="year">2026</span> Built with three.js</p>
-      </div>
+      <p class="s-foot__copy">© 2026 · 非官方致敬项目</p>
     </footer>
-  </section>
 
-</main>
+    <!-- 捏脸光标环：1px、--brand、透明度 0.25，克制到几乎看不见 -->
+    <div class="pinch-ring" id="pinchRing" aria-hidden="true"></div>
 
-<div class="scrim" id="scrim" aria-hidden="true"></div>
+    <noscript>
+      <div class="noscript">这个页面需要 JavaScript 才能渲染 3D 角色，上方的文字内容仍然可以正常阅读。</div>
+    </noscript>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "./vendor/three/three.module.js",
-    "three/addons/": "./vendor/three/addons/"
-  }
-}
-</script>
-<script type="module" src="./src/main.js"></script>
-</body>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

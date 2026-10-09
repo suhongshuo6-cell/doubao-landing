@@ -1,0 +1,74 @@
+{
+ "doubao_back": {
+  "bbox": [
+   0.275,
+   0.0083,
+   0.7688,
+   0.9917
+  ],
+  "layered": true
+ },
+ "doubao_face": {
+  "bbox": [
+   0.2,
+   0.04,
+   0.8,
+   0.98
+  ],
+  "layered": false
+ },
+ "doubao_front": {
+  "bbox": [
+   0.2687,
+   0.0083,
+   0.7812,
+   0.9917
+  ],
+  "layered": true
+ },
+ "doubao_legs": {
+  "bbox": [
+   0.393,
+   0.0083,
+   0.6023,
+   0.9917
+  ],
+  "layered": true
+ },
+ "doubao_neck": {
+  "bbox": [
+   0.1938,
+   0.0083,
+   0.8344,
+   0.9917
+  ],
+  "layered": true
+ },
+ "doubao_side": {
+  "bbox": [
+   0.25,
+   0.0083,
+   0.7719,
+   0.9917
+  ],
+  "layered": true
+ },
+ "doubao_toes": {
+  "bbox": [
+   0.1469,
+   0.0083,
+   0.825,
+   0.8889
+  ],
+  "layered": true
+ },
+ "doubao_waist": {
+  "bbox": [
+   0.075,
+   0.0083,
+   0.9187,
+   0.9917
+  ],
+  "layered": true
+ }
+}

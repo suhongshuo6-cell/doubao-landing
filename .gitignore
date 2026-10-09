@@ -1,9 +1,16 @@
-# 依赖 / 构建产物（本项目无需构建，列在这里只是防误提交）
+# 依赖 / 构建产物
 node_modules/
 dist/
-.tmp/
-shots/
+dist-ssr/
+.vite/
+*.local
+
+# 本地取景预览与截图（tools/verify.mjs 的输出）
+.preview-out/
 .preview/
+
+# 杂项
+.tmp/
 __pycache__/
 *.pyc
 *.log
