@@ -1,0 +1,12 @@
+# 依赖 / 构建产物（本项目无需构建，列在这里只是防误提交）
+node_modules/
+dist/
+.tmp/
+shots/
+*.log
+
+# 编辑器 / 系统
+.DS_Store
+.vscode/
+.idea/
+*.swp

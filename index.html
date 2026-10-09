@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>豆包 Doubao · 她在这里，等你开口</title>
+<meta name="description" content="豆包 AI 助手概念落地页 —— 一个从二次元蜕变为写实数字人的 3D 滚动剧场。会听、会说、会看、会记。" />
+<meta name="theme-color" content="#07070c" />
+<meta name="color-scheme" content="dark" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="豆包 Doubao · 她在这里，等你开口" />
+<meta property="og:description" content="一个从二次元蜕变为写实数字人的 3D 滚动剧场。" />
+<meta property="og:image" content="./assets/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+<link rel="stylesheet" href="./styles/main.css" />
+</head>
+
+<body class="is-loading">
+
+<!-- ══════════ 加载屏 ══════════ -->
+<div id="loader" class="loader" role="status" aria-live="polite">
+  <div class="loader__inner">
+    <div class="loader__mark" aria-hidden="true">豆</div>
+    <div class="loader__title">DOUBAO</div>
+    <div class="loader__bar"><i id="loaderBar"></i></div>
+    <div class="loader__meta">
+      <span id="loaderStage">正在唤醒虚拟形象</span>
+      <span><b id="loaderPct">0</b>%</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 3D 舞台 ══════════ -->
+<canvas id="gl" aria-hidden="true"></canvas>
+<div id="vignette" aria-hidden="true"></div>
+<div id="scanlines" aria-hidden="true"></div>
+
+<!-- 无 WebGL 回退 -->
+<div id="fallback" class="fallback" hidden>
+  <div class="fallback__card">
+    <h2>你的浏览器暂不支持 WebGL</h2>
+    <p>没关系，内容一样不少 —— 建议使用最新版 Chrome / Edge / Safari 获得完整体验。</p>
+    <a class="btn btn--primary" href="#s-download">直接看介绍</a>
+  </div>
+</div>
+
+<div id="wakeHint" class="wake" role="button" tabindex="0" aria-label="跳过开场动画" hidden><span>跳过开场 ›</span></div>
+
+<!-- ══════════ 自定义光标 ══════════ -->
+<div id="cursor" class="cursor" aria-hidden="true">
+  <span class="cursor__ring"></span>
+  <span class="cursor__dot"></span>
+  <span class="cursor__label">捏</span>
+</div>
+
+<!-- ══════════ 顶栏 ══════════ -->
+<header id="topbar" class="topbar">
+  <a class="brand" href="#s-hero" aria-label="回到顶部">
+    <span class="brand__logo" aria-hidden="true">豆</span>
+    <span class="brand__text">
+      <b>豆包</b>
+      <em>DOUBAO</em>
+    </span>
+  </a>
+
+  <nav class="topnav" aria-label="章节导航">
+    <a href="#s-face" data-nav="face">面容</a>
+    <a href="#s-neck" data-nav="neck">颈肩</a>
+    <a href="#s-waist" data-nav="waist">腰线</a>
+    <a href="#s-arms" data-nav="arms">手臂</a>
+    <a href="#s-legs" data-nav="legs">长腿</a>
+    <a href="#s-feet" data-nav="feet">赤足</a>
+  </nav>
+
+  <div class="topbar__actions">
+    <button id="soundToggle" class="icon-btn" type="button" aria-pressed="false" aria-label="开关环境音效">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7"/><path class="wave" d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+    </button>
+    <button id="qualityToggle" class="icon-btn" type="button" aria-label="切换画质档位">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+    </button>
+    <a class="btn btn--ghost btn--sm" href="#s-download">立即体验</a>
+  </div>
+</header>
+
+<!-- ══════════ 左侧分镜刻度 ══════════ -->
+<aside id="reel" class="reel" aria-hidden="true">
+  <div class="reel__line"><i id="reelFill"></i></div>
+  <ul class="reel__ticks">
+    <li data-nav="hero"><i></i><span>开场</span></li>
+    <li data-nav="face"><i></i><span>面容</span></li>
+    <li data-nav="neck"><i></i><span>颈肩</span></li>
+    <li data-nav="chest"><i></i><span>心意</span></li>
+    <li data-nav="waist"><i></i><span>腰线</span></li>
+    <li data-nav="arms"><i></i><span>手臂</span></li>
+    <li data-nav="legs"><i></i><span>长腿</span></li>
+    <li data-nav="feet"><i></i><span>赤足</span></li>
+    <li data-nav="full"><i></i><span>全身</span></li>
+    <li data-nav="download"><i></i><span>下载</span></li>
+  </ul>
+</aside>
+
+<!-- ══════════ 当前分镜标签 ══════════ -->
+<div id="beatLabel" class="beatlabel" aria-hidden="true">
+  <span class="beatlabel__idx" id="beatIdx">00</span>
+  <span class="beatlabel__name" id="beatName">开场</span>
+  <span class="beatlabel__en" id="beatEn">OVERTURE</span>
+</div>
+
+<!-- ══════════ 交互提示 ══════════ -->
+<div id="hintPinch" class="hintp" aria-hidden="true">
+  <span class="hintp__icon"></span>
+  <span class="hintp__text">按住她的脸 · 轻轻捏</span>
+</div>
+<div id="hintDrag" class="hintp hintp--drag" aria-hidden="true">
+  <span class="hintp__arrow">←</span>
+  <span class="hintp__text">左右拖动，绕到她身侧</span>
+  <span class="hintp__arrow">→</span>
+</div>
+
+<!-- ══════════ 滚动主流程 ══════════ -->
+<main id="flow">
+
+  <!-- 00 开场 -->
+  <section class="beat beat--hero" id="s-hero" data-beat="hero" data-idx="00" data-name="开场" data-en="OVERTURE">
+    <div class="hero">
+      <p class="hero__kicker reveal">字节跳动 · AI 助手</p>
+      <h1 class="hero__title">
+        <span class="line reveal">她在这里</span>
+        <span class="line reveal">等你开口</span>
+      </h1>
+      <p class="hero__sub reveal">会听 · 会说 · 会看 · 会记</p>
+    </div>
+    <div class="scrollcue" aria-hidden="true">
+      <span class="scrollcue__wheel"></span>
+      <span class="scrollcue__txt">向下滚动，靠近她</span>
+    </div>
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track">
+        <span>DOUBAO</span><span>·</span><span>虚拟形象</span><span>·</span><span>WEBGL</span><span>·</span><span>实时渲染</span><span>·</span><span>捏一下试试</span><span>·</span>
+        <span>DOUBAO</span><span>·</span><span>虚拟形象</span><span>·</span><span>WEBGL</span><span>·</span><span>实时渲染</span><span>·</span><span>捏一下试试</span><span>·</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 01 面容 -->
+  <section class="beat beat--left" id="s-face" data-beat="face" data-idx="01" data-name="面容" data-en="THE FACE">
+    <div class="card">
+      <p class="card__idx">01 / 09</p>
+      <h2 class="card__title">初次见面</h2>
+      <p class="card__desc">一张会呼吸的脸。把光标移到她脸上，按住，轻轻拖动 —— 她会回应你。</p>
+      <ul class="tags"><li>捏脸交互</li><li>次表面散射</li><li>实时高光</li></ul>
+    </div>
+  </section>
+
+  <!-- 02 颈肩 -->
+  <section class="beat beat--right" id="s-neck" data-beat="neck" data-idx="02" data-name="颈肩" data-en="BREATH">
+    <div class="card">
+      <p class="card__idx">02 / 09</p>
+      <h2 class="card__title">呼吸之间</h2>
+      <p class="card__desc">真实的皮肤需要真实的光。颈侧与锁骨的高光会随呼吸缓慢流动。</p>
+      <ul class="tags"><li>顶点呼吸</li><li>边缘光</li><li>毛孔法线</li></ul>
+    </div>
+  </section>
+
+  <!-- 03 心意 -->
+  <section class="beat beat--left" id="s-chest" data-beat="chest" data-idx="03" data-name="心意" data-en="SHE LISTENS">
+    <div class="card">
+      <p class="card__idx">03 / 09</p>
+      <h2 class="card__title">她先听，再说</h2>
+      <p class="card__desc">一句话就能开始，不用打字。语音对话的每一次停顿，她都听得懂。</p>
+      <ul class="tags"><li>语音对话</li><li>实时打断</li><li>情绪识别</li></ul>
+    </div>
+  </section>
+
+  <!-- 04 腰线 -->
+  <section class="beat beat--right" id="s-waist" data-beat="waist" data-idx="04" data-name="腰线" data-en="SHE REMEMBERS">
+    <div class="card">
+      <p class="card__idx">04 / 09</p>
+      <h2 class="card__title">聊得越久，越懂你</h2>
+      <p class="card__desc">长期记忆让每一次对话都接得上上一次。她记得你的偏好、你的项目、你的口头禅。</p>
+      <ul class="tags"><li>长期记忆</li><li>个人知识库</li><li>跨设备</li></ul>
+    </div>
+  </section>
+
+  <!-- 05 手臂 -->
+  <section class="beat beat--left" id="s-arms" data-beat="arms" data-idx="05" data-name="手臂" data-en="SHE SPEAKS">
+    <div class="card">
+      <p class="card__idx">05 / 09</p>
+      <h2 class="card__title">她动手，你收工</h2>
+      <p class="card__desc">写文案、做图、改代码、整理表格 —— 交给她的手。</p>
+      <ul class="tags"><li>多模态创作</li><li>图像生成</li><li>代码助手</li></ul>
+    </div>
+  </section>
+
+  <!-- 06 长腿 -->
+  <section class="beat beat--right" id="s-legs" data-beat="legs" data-idx="06" data-name="长腿" data-en="SHE WALKS">
+    <div class="card">
+      <p class="card__idx">06 / 09</p>
+      <h2 class="card__title">走到你所在的每一个屏幕</h2>
+      <p class="card__desc">手机、平板、桌面、浏览器插件。同一个她，随时接上。</p>
+      <ul class="tags"><li>全平台</li><li>秒级同步</li><li>离线可用</li></ul>
+    </div>
+  </section>
+
+  <!-- 07 赤足 -->
+  <section class="beat beat--left" id="s-feet" data-beat="feet" data-idx="07" data-name="赤足" data-en="TOUCH GROUND">
+    <div class="card">
+      <p class="card__idx">07 / 09</p>
+      <h2 class="card__title">落到你脚下</h2>
+      <p class="card__desc">不是概念演示 —— 今天就能下载使用。</p>
+      <ul class="tags"><li>免费开始</li><li>开放平台</li><li>插件生态</li></ul>
+    </div>
+  </section>
+
+  <!-- 08 全身 · 卖点 -->
+  <section class="beat beat--full" id="s-full" data-beat="full" data-idx="08" data-name="全身" data-en="FULL VIEW">
+    <header class="grid-head">
+      <p class="card__idx">08 / 09</p>
+      <h2 class="htitle reveal">四个能力，一个人</h2>
+    </header>
+    <div class="grid">
+      <article class="feat tile">
+        <span class="feat__no">01</span>
+        <h3>会听</h3>
+        <p>语音对话、实时打断、情绪识别。开口就行，不用组织语言。</p>
+      </article>
+      <article class="feat tile">
+        <span class="feat__no">02</span>
+        <h3>会说</h3>
+        <p>文案、翻译、剧本、代码。多模态创作，一个输入框全包。</p>
+      </article>
+      <article class="feat tile">
+        <span class="feat__no">03</span>
+        <h3>会看</h3>
+        <p>拍照、截图、传文件丢给她。图片、PDF、表格都能读懂。</p>
+      </article>
+      <article class="feat tile">
+        <span class="feat__no">04</span>
+        <h3>会记</h3>
+        <p>长期记忆与个人知识库。聊得越久，越不需要重复自己。</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 09 下载 -->
+  <section class="beat beat--download" id="s-download" data-beat="download" data-idx="09" data-name="下载" data-en="GET STARTED">
+    <div class="cta">
+      <p class="card__idx">09 / 09</p>
+      <h2 class="cta__title reveal">现在，和她说第一句话</h2>
+      <p class="cta__sub reveal">全平台免费下载 · 网页版免安装</p>
+      <div class="cta__row">
+        <a class="btn btn--primary magnetic" href="#" data-magnetic>
+          <span>App Store 下载</span><i class="shine"></i>
+        </a>
+        <a class="btn btn--ghost magnetic" href="#" data-magnetic>
+          <span>Android 下载</span><i class="shine"></i>
+        </a>
+        <a class="btn btn--ghost magnetic" href="#" data-magnetic>
+          <span>打开网页版</span><i class="shine"></i>
+        </a>
+      </div>
+      <div class="qr">
+        <div class="qr__box" aria-hidden="true"><span>扫码</span></div>
+        <p>手机扫码，直接下载豆包 App</p>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer__brand">
+        <span class="brand__logo" aria-hidden="true">豆</span>
+        <div>
+          <b>豆包 Doubao</b>
+          <p>AI 助手概念落地页 · WebGL 实时渲染</p>
+        </div>
+      </div>
+      <div class="footer__meta">
+        <p>本站为个人非商业技术演示，与字节跳动无隶属关系；“豆包”商标归其所有者所有。</p>
+        <p>页面中的虚拟形象为程序化生成的原创设计，不基于任何真实人物。© <span id="year">2026</span> Built with three.js</p>
+      </div>
+    </footer>
+  </section>
+
+</main>
+
+<div class="scrim" id="scrim" aria-hidden="true"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
