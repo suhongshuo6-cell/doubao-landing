@@ -1,28 +1,33 @@
 /**
- * 入口：装配 3D 舞台 + DOM 层，驱动开场时间线与主循环。
+ * 入口：全屏立绘 + 明亮棚拍主题 + 滚动取景漫游。
  *
  * 调试参数：
  *   ?p=0.42        直接停在某个滚动进度（跳过开场）
- *   ?nointro=1     跳过开场动画
+ *   ?nointro=1     跳过开场
  *   ?q=low|medium|high  指定画质
- *   ?debug=1       显示右下角调试面板
+ *   ?debug=1       右下角调试面板
+ *   ?frames=8      只渲染 8 帧后停住（无头截图用）
+ *   ?view=side|back 直接切到某个视图
  */
 import * as THREE from 'three';
-import { createStage } from './three/stage.js';
-import { buildCharacter } from './three/character.js';
-import { buildParticles } from './three/particles.js';
-import { createCameraRig } from './three/cameraRig.js';
+
+// 立绘是"照片"，整条管线都在显示空间做图像处理（不做线性工作流），
+// 这样 clear color / 背景色 / 贴图采样都所见即所得。
+THREE.ColorManagement.enabled = false;
+
+import { createPortrait } from './three/portrait.js';
+import { createPortraitRig } from './three/portraitRig.js';
 import { createInteractor } from './three/interact.js';
 import { createHud } from './ui/hud.js';
 import { createReveal } from './ui/reveal.js';
 import { createAudio } from './ui/audio.js';
-import { QUALITY, INTRO, LIGHTS, clamp, lerp, easeOutCubic, easeInOutCubic } from './config.js';
+import { QUALITY, INTRO, PALETTE, clamp, lerp, easeOutCubic } from './config.js';
 
 /* ══════════ 调试 / 错误通道（无头浏览器靠它核对） ══════════ */
 const qs = new URLSearchParams(location.search);
 const debugEl = document.createElement('pre');
 debugEl.id = 'debug';
-debugEl.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:9999;margin:0;font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8ef0c0;text-align:right;pointer-events:none;display:none;text-shadow:0 0 6px #000;';
+debugEl.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:9999;margin:0;font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:#2f6f4f;text-align:right;pointer-events:none;display:none;';
 document.body.appendChild(debugEl);
 const errs = [];
 function reportError(msg) {
@@ -59,9 +64,8 @@ function pickQuality() {
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const forceP = qs.has('p') ? clamp(parseFloat(qs.get('p')) || 0) : null;
 const skipIntro = qs.get('nointro') === '1' || forceP !== null || reduceMotion;
-// 无头截图用：?frames=N 只渲染 N 帧后停住；?instant=1 让相机直接落到目标位（不做阻尼过渡）
 const maxFrames = qs.has('frames') ? Math.max(1, parseInt(qs.get('frames'), 10) || 1) : 0;
-const instantCam = qs.get('instant') === '1';
+const forceView = { side: 1, back: 2 }[qs.get('view')] ?? null;
 
 /* ══════════ 启动 ══════════ */
 const canvas = document.getElementById('gl');
@@ -77,7 +81,6 @@ if (!hasWebGL()) {
   reportError('WebGL2 unavailable');
 } else {
   boot().catch(err => {
-    // 任何异常都不能让用户永远停在加载屏
     reportError((err && (err.stack || err.message)) || err);
     hud.setLoading(1, '渲染初始化失败，已切换到静态介绍');
     hud.finishLoading();
@@ -94,51 +97,54 @@ function nextFrame() {
 async function boot() {
   document.body.classList.add('is-loading');
   if (typeof WebGL2RenderingContext === 'undefined') throw new Error('WebGL2 not supported');
-  hud.setLoading(0.06, '正在唤醒虚拟形象');
-  await nextFrame();
 
   let qName = pickQuality();
   let quality = QUALITY[qName];
 
-  hud.setLoading(0.24, '搭建渲染管线');
-  const stage = createStage({ canvas, quality });
-  const shared = stage.shared;
-  await nextFrame();
+  hud.setLoading(0.05, '初始化渲染器');
 
-  hud.setLoading(0.48, '雕刻面部与发丝');
-  const character = buildCharacter({ quality, shared, lights: LIGHTS });
-  stage.scene.add(character.group);
-  await nextFrame();
-
-  hud.setLoading(0.68, '注入光与尘埃');
-  const particles = buildParticles({
-    quality,
-    characterGroup: character.group,
-    pixelRatio: Math.min(window.devicePixelRatio || 1, quality.dpr)
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: false,
+    powerPreference: 'high-performance',
+    stencil: false
   });
-  stage.scene.add(particles.group);
+  renderer.setClearColor(new THREE.Color(PALETTE.bg0), 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NoToneMapping;
   await nextFrame();
 
-  hud.setLoading(0.86, '校准镜头');
-  const rig = createCameraRig({ camera: stage.camera });
+  hud.setLoading(0.14, '载入立绘');
+  const portrait = await createPortrait({
+    renderer,
+    quality,
+    onProgress: (frac, name, ok) => {
+      const label = { front: '正面', side: '侧面', back: '背面' }[name] || name;
+      hud.setLoading(0.14 + frac * 0.72,
+        ok ? `载入立绘 · ${label}` : `缺少立绘 · ${label}（已用占位图）`);
+    }
+  });
+
+  hud.setLoading(0.9, '校准取景');
+  const rig = createPortraitRig();
   const interactor = createInteractor({
-    canvas, camera: stage.camera, rig, character,
+    canvas, portrait,
     hooks: {
-      onPinchStart: () => { audio.blip(760, 0.22, 'sine', 0.16); },
-      onPinchMove: hit => { if (hit) audio.blip(420 + Math.random() * 180, 0.09, 'triangle', 0.05); },
-      onTap: () => audio.blip(520, 0.12, 'sine', 0.08)
+      onPressStart: () => audio.blip(680, 0.2, 'sine', 0.10),
+      onPressMove: hit => { if (hit) audio.blip(430 + Math.random() * 150, 0.08, 'triangle', 0.035); },
+      onTap: () => audio.blip(520, 0.1, 'sine', 0.05)
     }
   });
   createReveal();
 
   /* ── 尺寸 ── */
-  const outlineRes = character.materials.outline.uniforms.uResolution.value;
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
     const pr = Math.min(window.devicePixelRatio || 1, quality.dpr);
-    stage.resize(w, h, pr);
-    outlineRes.set(w * pr, h * pr);
-    particles.setPixelRatio(pr);
+    renderer.setPixelRatio(pr);
+    renderer.setSize(w, h, false);
+    portrait.uniforms.uRes.value.set(w * pr, h * pr);
     rig.measure();
     if (forceP !== null) {
       const len = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
@@ -153,119 +159,71 @@ async function boot() {
   resize();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => resize());
 
+  if (forceView !== null) { interactor.state.turn = forceView; portrait.state.turnCur = forceView; }
+
   /* ── 首帧 ── */
   hud.setLoading(0.97, '准备就绪');
-  stage.renderer.compile(stage.scene, stage.camera);
-  stage.render();
+  portrait.state.turnCur = interactor.state.turn;
+  portrait.update(1 / 60, 0);
+  renderer.render(portrait.scene, portrait.camera);
   await nextFrame();
   hud.setLoading(1, '准备就绪');
   hud.finishLoading();
   hud.setQualityLabel(quality.label);
 
-  /* ══════════ 开场时间线 ══════════ */
-  const CAM_FROM = { pos: new THREE.Vector3(0.06, 1.28, 2.35), look: new THREE.Vector3(0, 1.50, 0), fov: 44 };
-  const CAM_TO = { pos: new THREE.Vector3(0.0, 1.664, 0.46), look: new THREE.Vector3(0, 1.6625, 0), fov: 34 };
+  /* ══════════ 开场：只做一次推近 + 对焦，没有粒子也没有闪光 ══════════ */
   let introT = 0;
-  let burstFired = false;
   let introActive = !skipIntro;
-  const _cp = new THREE.Vector3(), _cl = new THREE.Vector3();
-
   document.documentElement.style.overflow = introActive ? 'hidden' : '';
-  window.scrollTo(0, forceP !== null ? window.scrollY : 0);
+  if (forceP === null) window.scrollTo(0, 0);
 
   function endIntro(byUser = false) {
     if (!introActive) return;
     introActive = false;
     document.documentElement.style.overflow = '';
-    shared.uReal.value = 1;
-    shared.uSweepY.value = 2.4;
-    shared.uSweepGlow.value = 0;
-    shared.uFade.value = 1;
-    character.materials.eye.uniforms.uFade.value = 1;
-    particles.setConverge(1);
-    particles.setConvergeFade(0.12);
-    stage.gradePass.uniforms.uFlash.value = 0;
+    portrait.state.zoom = 1;
+    portrait.setBlur(0);
+    portrait.setExposure(1);
     hud.setSkip(false);
     if (byUser) hud.el.beatLabel?.classList.add('is-in');
   }
 
   function updateIntro(dt) {
     introT += dt;
-    const t = introT;
-
-    // 1) 粒子自球壳汇聚成人形
-    particles.setConverge(clamp(t / INTRO.convergeEnd));
-    particles.setConvergeFade(clamp(1 - (t - INTRO.convergeEnd) / 0.7) * 0.92 + 0.08);
-
-    // 2) 角色在粒子成形后"点亮"
-    const fade = clamp((t - INTRO.materialIn) / 0.5);
-    const f = easeOutCubic(fade);
-    shared.uFade.value = f;
-    character.materials.eye.uniforms.uFade.value = f;
-
-    // 3) 扫光蜕变：自下而上，脸最后
-    let sweepY = -0.5, glow = 0;
-    if (t > INTRO.sweepStart) {
-      const st = clamp((t - INTRO.sweepStart) / (INTRO.sweepEnd - INTRO.sweepStart));
-      const e = easeInOutCubic(st);
-      sweepY = lerp(-0.25, 2.15, e);
-      glow = Math.sin(Math.pow(st, 0.75) * Math.PI) * 1.25;
-      shared.uReal.value = 1;
-      if (st > 0.05 && st < 0.08) audio.swell();
-    }
-    shared.uSweepY.value = sweepY;
-    shared.uSweepGlow.value = glow;
-
-    // 4) 镜头从半身推近到脸部特写
-    const ct = easeOutCubic(clamp((t - 0.12) / (INTRO.total - 0.45)));
-    _cp.lerpVectors(CAM_FROM.pos, CAM_TO.pos, ct);
-    _cl.lerpVectors(CAM_FROM.look, CAM_TO.look, ct);
-    stage.camera.position.copy(_cp);
-    stage.camera.lookAt(_cl);
-    stage.camera.fov = lerp(CAM_FROM.fov, CAM_TO.fov, ct);
-    stage.camera.updateProjectionMatrix();
-
-    stage.gradePass.uniforms.uFlash.value = glow * 0.10 + (fade < 1 ? (1 - fade) * 0.02 : 0);
-    stage.gradePass.uniforms.uAberration.value = 1 + glow * 2.4;
-    if (t > INTRO.sweepStart && !burstFired) { burstFired = true; particles.fireBurst(sweepY); }
-    if (burstFired) particles.updateBurst(clamp((t - INTRO.sweepStart) / 1.15));
-
-    hud.setSkip(t > 1.4);
-    if (t >= INTRO.total) {
-      // 与运镜 rig 无缝衔接
-      rig.update(0, 0.016, { orbit: 0, pointer: { x: 0, y: 0 }, time: t });
-      endIntro();
-    }
+    const t = clamp(introT / INTRO.total);
+    const e = easeOutCubic(t);
+    portrait.state.zoom = lerp(INTRO.zoomFrom, 1, e);
+    portrait.setBlur(lerp(INTRO.blurFrom, 0, e));
+    portrait.setExposure(lerp(1.04, 1, e));
+    hud.setSkip(t > 0.7);
+    if (t >= 1) endIntro();
   }
 
   /* ══════════ 分镜 UI 配置 ══════════ */
   const BEAT_UI = {
-    hero: { breath: 0.40, sway: 0.000, pinch: true, drag: false, scrim: 0.04 },
-    face: { breath: 0.55, sway: 0.000, pinch: true, drag: false, scrim: 0.04 },
-    neck: { breath: 1.00, sway: 0.012, pinch: false, drag: false, scrim: 0.26 },
-    chest: { breath: 1.15, sway: 0.022, pinch: false, drag: false, scrim: 0.30 },
-    waist: { breath: 0.75, sway: 0.050, pinch: false, drag: false, scrim: 0.32 },
-    arms: { breath: 0.60, sway: 0.020, pinch: false, drag: true, scrim: 0.28 },
-    legs: { breath: 0.50, sway: 0.030, pinch: false, drag: false, scrim: 0.28 },
-    feet: { breath: 0.50, sway: 0.020, pinch: false, drag: false, scrim: 0.24 },
-    full: { breath: 0.60, sway: 0.020, pinch: false, drag: true, scrim: 0.40 },
-    download: { breath: 0.40, sway: 0.010, pinch: false, drag: false, scrim: 0.55 }
+    hero: { pinch: true, drag: false, scrim: 0.00 },
+    face: { pinch: true, drag: false, scrim: 0.00 },
+    neck: { pinch: false, drag: false, scrim: 0.14 },
+    chest: { pinch: false, drag: false, scrim: 0.18 },
+    waist: { pinch: false, drag: false, scrim: 0.18 },
+    arms: { pinch: false, drag: true, scrim: 0.16 },
+    legs: { pinch: false, drag: false, scrim: 0.16 },
+    feet: { pinch: false, drag: false, scrim: 0.14 },
+    full: { pinch: false, drag: true, scrim: 0.28 },
+    download: { pinch: false, drag: false, scrim: 0.40 }
   };
-  const uiCur = { breath: 0.4, sway: 0, scrim: 0.1, pinch: false, drag: false };
 
   /* ══════════ 主循环 ══════════ */
   let time = 0, last = performance.now();
   let p = forceP ?? 0, pSmooth = p;
   let fpsAcc = 0, fpsFrames = 0, fps = 60, dbgAcc = 0;
-  let downscaled = false, snapped = false, frameCount = 0;
+  let frameCount = 0, downscaled = false;
+  const frameBuf = { cy: 54, w: 215 };
 
   function frame(now) {
     const dt = Math.min(0.05, Math.max(0.0005, (now - last) / 1000));
     last = now;
     time += dt;
-
-    shared.uTime.value = time;
-    shared.uSweepW.value = 0.055;
 
     const scrollLen = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     const targetP = clamp(window.scrollY / scrollLen);
@@ -273,110 +231,88 @@ async function boot() {
     if (introActive) {
       updateIntro(dt);
       p = 0; pSmooth = 0;
+      const s0 = rig.sample(0);
+      frameBuf.cy = s0.cy; frameBuf.w = s0.w;
     } else {
       p = targetP;
       pSmooth += (p - pSmooth) * (1 - Math.exp(-13 * dt));
-      const st = interactor.state;
-      if (instantCam && !snapped) {
-        snapped = true;
-        const t0 = rig.sample(pSmooth);
-        stage.camera.position.copy(t0.pos);
-        stage.camera.lookAt(t0.look);
-        stage.camera.fov = t0.fov;
-        stage.camera.updateProjectionMatrix();
-        rig.update(pSmooth, 999, { orbit: 0, pointer: { x: 0, y: 0 }, time: 0 });
-      }
-      const sampled = rig.update(pSmooth, dt, {
-        orbit: st.orbit,
-        pointer: st.pointer,
-        time
-      });
-      // 分镜运动参数插值
+      const s = rig.sample(pSmooth);
+      frameBuf.cy = s.cy; frameBuf.w = s.w;
+
+      const st = interactor.update(dt, time);
       const beat = rig.beatAt(pSmooth);
       const a = BEAT_UI[beat.from.id] || BEAT_UI.face;
       const b = BEAT_UI[beat.to.id] || a;
-      const e = easeInOutCubic(beat.t);
-      uiCur.breath = lerp(a.breath, b.breath, e);
-      uiCur.sway = lerp(a.sway, b.sway, e);
-      uiCur.scrim = lerp(a.scrim, b.scrim, e);
-      uiCur.pinch = beat.t < 0.5 ? a.pinch : b.pinch;
-      uiCur.drag = beat.t < 0.5 ? a.drag : b.drag;
+      const e = easeOutCubic(beat.t);
+      const pinchOn = beat.t < 0.5 ? a.pinch : b.pinch;
+      const dragOn = beat.t < 0.5 ? a.drag : b.drag;
+
       hud.setBeat(beat.t > 0.5 ? beat.to : beat.from);
       hud.setScrollProgress(pSmooth);
       hud.setSolid(pSmooth > 0.012);
-      hud.setScrim(uiCur.scrim);
-      hud.setPinchHint(uiCur.pinch && !st.pinching);
-      hud.setDragHint(uiCur.drag);
-      stage.gradePass.uniforms.uFlash.value *= Math.exp(-6 * dt);
-      stage.gradePass.uniforms.uAberration.value =
-        lerp(1, 0.55, 1 - shared.uReal.value) + st.pinchStrength * 4;
+      hud.setScrim(lerp(a.scrim, b.scrim, e));
+      hud.setPinchHint(pinchOn && !st.pinching);
+      hud.setDragHint(dragOn);
+      hud.setCursorState({ pinch: st.overFace, drag: st.overCanvas && !st.overFace });
     }
 
-    // 角色
-    character.update(time, {
-      breath: uiCur.breath,
-      sway: uiCur.sway
-    });
+    portrait.setFrame(frameBuf);
+    portrait.update(dt, time);
+    renderer.render(portrait.scene, portrait.camera);
 
-    // 交互（开场期间只跑指针平滑，不响应捏脸）
-    const hit = introActive ? { hit: null, overFace: false } : interactor.update(pSmooth, dt, time);
-
-    particles.update(time);
     hud.tickCursor(dt);
-    hud.setCursorState({ pinch: !!(hit && hit.overFace) });
 
-    // 轻量自动降级：连续 2 秒低于 26fps 就降一档
+    // 轻量自动降级
     if (!downscaled && !forceP) {
       fpsAcc += dt; fpsFrames++;
       if (fpsAcc > 1) { fps = fpsFrames / fpsAcc; fpsAcc = 0; fpsFrames = 0; }
       if (fps < 26 && time > 8) { downscaled = true; applyLowFallback(); }
     }
 
-    stage.render();
-
     dbgAcc += dt;
     if (dbgAcc > 0.4) {
       dbgAcc = 0;
-      const info = stage.renderer.info;
-      debugEl.dataset.state = `p=${p.toFixed(3)} q=${qName} fps=${fps.toFixed(0)} tri=${info.render.triangles} calls=${info.render.calls} prog=${info.programs ? info.programs.length : 0} pinch=${(hit && hit.pinchStrength || 0).toFixed(4)} face=${hit && hit.overFace ? 1 : 0}`;
+      const info = renderer.info;
+      debugEl.dataset.state =
+        `p=${p.toFixed(3)} q=${qName} fps=${fps.toFixed(0)} turn=${interactor.state.turn.toFixed(2)} ` +
+        `cy=${frameBuf.cy.toFixed(1)} w=${frameBuf.w.toFixed(1)} press=${interactor.state.pressAmount.toFixed(3)} ` +
+        `tri=${info.render.triangles} calls=${info.render.calls} ` +
+        `view=${['front', 'side', 'back'][Math.round(clamp(interactor.state.turn, 0, 2))]}`;
       if (qs.get('debug') === '1' || errs.length) {
         debugEl.style.display = 'block';
         debugEl.textContent = (errs.length ? 'ERROR: ' + errs.join('\n') + '\n' : '') + debugEl.dataset.state;
       }
     }
+
     frameCount++;
     if (maxFrames && frameCount >= maxFrames) {
       debugEl.style.display = 'block';
-      const info = stage.renderer.info;
       debugEl.textContent = (errs.length ? 'ERROR: ' + errs.join('\n') + '\n' : '') + debugEl.dataset.state;
       debugEl.dataset.frames = String(frameCount);
-      return;   // 停住，交给无头浏览器截图 / dump-dom
+      return;
     }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
-  /* ── 画质降级 ── */
   function applyLowFallback() {
-    stage.renderer.setPixelRatio(1);
-    if (stage.composer.passes) {
-      for (const pass of stage.composer.passes) {
-        if (pass.constructor && pass.constructor.name === 'UnrealBloomPass') pass.enabled = false;
-      }
-    }
-    character.hairStrands.forEach((m, i) => { if (i % 2 === 1) m.visible = false; });
+    renderer.setPixelRatio(1);
+    portrait.uniforms.uGrain.value = 0.004;
+    portrait.uniforms.uSharp.value = 0;
     document.body.classList.add('quality-low');
     hud.setQualityLabel('AUTO-LOW');
+    qName = 'low';
   }
 
   function cycleQuality() {
     const order = ['high', 'medium', 'low'];
     const cur = order.indexOf(qName);
-    qName = order[(cur + 1) % order.length];
-    location.search = `?q=${qName}${forceP !== null ? `&p=${forceP}` : ''}${qs.get('debug') === '1' ? '&debug=1' : ''}`;
+    const next = order[(cur + 1) % order.length];
+    const extra = `${forceP !== null ? `&p=${forceP}` : ''}${qs.get('debug') === '1' ? '&debug=1' : ''}`;
+    location.search = `?q=${next}${extra}`;
   }
 
-  /* ── 键盘：方向键 / PgUp / PgDn 推进分镜 ── */
+  /* ── 键盘推进分镜 / 左右转身 ── */
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && introActive) return endIntro(true);
     if (e.key === ' ' && introActive) { e.preventDefault(); return endIntro(true); }
@@ -387,18 +323,22 @@ async function boot() {
     if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); window.scrollBy({ top: -jump, behavior: 'smooth' }); }
     if (e.key === 'Home') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
     if (e.key === 'End') { e.preventDefault(); window.scrollTo({ top: len, behavior: 'smooth' }); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); interactor.state.turn = clamp(Math.round(interactor.state.turn) + 1, 0, 2); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); interactor.state.turn = clamp(Math.round(interactor.state.turn) - 1, 0, 2); }
   });
 
   /* ── 对外调试句柄 ── */
   window.__DOUBAO = {
-    stage, character, particles, rig, interactor, hud,
+    renderer, portrait, rig, interactor, hud,
     get p() { return p; },
     get errors() { return errs.slice(); },
+    get missingImages() { return portrait.state.missing; },
     state: () => debugEl.dataset.state,
     goTo(v) {
       const len = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       window.scrollTo(0, clamp(v) * len);
     },
+    setTurn(v) { interactor.state.turn = clamp(v, 0, 2); },
     skipIntro: () => endIntro(true)
   };
 }

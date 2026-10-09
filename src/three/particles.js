@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { sampleMeshes } from './geometry.js';
-import { makeRandom, PALETTE } from '../config.js';
+import { makeRandom, PALETTE } from '../legacy-config.js';   // 可选模块专用配置（页面默认不加载）
 
 const VERT = /* glsl */`
   attribute vec3 aStart;

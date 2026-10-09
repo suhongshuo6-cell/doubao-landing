@@ -3,6 +3,9 @@ node_modules/
 dist/
 .tmp/
 shots/
+.preview/
+__pycache__/
+*.pyc
 *.log
 
 # 编辑器 / 系统

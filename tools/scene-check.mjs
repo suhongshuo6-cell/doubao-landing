@@ -1,214 +1,230 @@
 /**
- * 离线自检：不依赖浏览器，在 Node 里构建整个角色 + 粒子 + 着色器审计。
+ * 离线自检：不需要浏览器，在 Node 里校验「立绘取景」主链路 + 可选模块，并逐条核对着色器接口。
  *
  *   node tools/scene-check.mjs
  *
- * 检查项：
- *   1. 几何体是否有 NaN / 退化
- *   2. 人物尺寸与站位是否符合设计（脚底 y≈0、头顶 y≈1.78、脸在 y≈1.66）
- *   3. 头部是否按预期挖出两个眼裂
- *   4. 每个材质的 GLSL uniform 声明 与 JS uniforms 是否一一对应（漏一个就是静默失效）
- *   5. vertex / fragment 之间的 varying 是否匹配（不匹配会直接链接失败 → 黑屏）
+ *   A. 立绘资源是否就位
+ *   B. 10 个分镜取景是否覆盖「脸→颈→胸→腰→腿→脚→全身」且顺序单调
+ *   C. 面部命中框（捏脸）是否落在人物头部范围内
+ *   D. 取景数学：屏幕 ↔ 原图像素映射、竖屏收窄、捏脸启用门控
+ *   E. 着色器 uniform / varying 交叉审计 —— three 在 WebGLUniforms.upload 里直接读
+ *      v.needsUpdate，着色器声明了但 JS 没给值的 uniform 会在渲染时抛异常（黑屏）
+ *   F. 可选模块（程序化数字人）仍可构建、几何健全
+ *   G. 明亮主题：亮度、对比度、无深色残留、无高频动画
  */
 import { register } from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 register('./three-resolver.mjs', import.meta.url);
 
 const THREE = await import('three');
-const { buildCharacter, EYE, deformHead, faceSurfacePoint, headToWorld } = await import('../src/three/character.js');
-const { buildParticles } = await import('../src/three/particles.js');
-const { QUALITY, LIGHTS, makeRandom, HEAD } = await import('../src/config.js');
+const { PORTRAIT, BEATS, PALETTE, QUALITY, INTRO } = await import('../src/config.js');
+const { createPortraitMaterial } = await import('../src/three/portrait.js');
 const S = await import('../src/three/shaders.js');
-const { createParticleMaterial } = await import('../src/three/particles.js');
+const LEGACY = await import('../src/legacy-config.js');
 
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 let fail = 0;
 const ok = (cond, msg, extra = '') => {
   if (cond) console.log(`  ✓ ${msg}${extra ? '  ' + extra : ''}`);
   else { console.log(`  ✗ ${msg}  ${extra}`); fail++; }
 };
 
-/* ══════════ 1. 构建场景 ══════════ */
-console.log('\n▍构建角色（high 档）');
-const shared = {
-  uTime: { value: 0 }, uReal: { value: 0 }, uSweepY: { value: 0 },
-  uSweepW: { value: 0.055 }, uSweepGlow: { value: 0 }, uFade: { value: 1 }
-};
-const character = buildCharacter({ quality: QUALITY.high, shared, lights: LIGHTS });
-character.group.updateMatrixWorld(true);
-
-const box = new THREE.Box3();
-let tris = 0, nan = 0, meshes = 0, verts = 0;
-const perMesh = [];
-character.group.traverse(o => {
-  if (!o.isMesh) return;
-  meshes++;
-  const g = o.geometry;
-  const pos = g.attributes.position;
-  verts += pos.count;
-  tris += (g.index ? g.index.count : pos.count) / 3;
-  for (let i = 0; i < pos.count * 3; i++) if (!Number.isFinite(pos.array[i])) nan++;
-  const b = new THREE.Box3().setFromBufferAttribute(pos).applyMatrix4(o.matrixWorld);
-  box.union(b);
-  perMesh.push({ name: o.name, tris: Math.round((g.index ? g.index.count : pos.count) / 3) });
-});
-
-console.log(`  网格 ${meshes} 个 / 顶点 ${verts} / 三角面 ${Math.round(tris)}`);
-console.log(`  包围盒 X[${box.min.x.toFixed(3)}, ${box.max.x.toFixed(3)}]  Y[${box.min.y.toFixed(3)}, ${box.max.y.toFixed(3)}]  Z[${box.min.z.toFixed(3)}, ${box.max.z.toFixed(3)}]`);
-
-console.log('\n▍几何体健全性');
-ok(nan === 0, '无 NaN 顶点', `nan=${nan}`);
-ok(tris > 15000 && tris < 260000, '三角面数量在合理区间', `${Math.round(tris)}`);
-ok(Math.abs(box.min.y - 0) < 0.02, '脚底贴地 y≈0', `y_min=${box.min.y.toFixed(4)}`);
-ok(box.max.y > 1.70 && box.max.y < 1.86, '身高约 1.78m', `y_max=${box.max.y.toFixed(3)}`);
-ok(box.max.z > 0.07 && box.min.z < -0.10, '面部朝 +Z 且发量在后脑', `z=[${box.min.z.toFixed(3)}, ${box.max.z.toFixed(3)}]`);
-
-/* ══════════ 2. 头部 ══════════ */
-console.log('\n▍头部与眼睛');
-const head = character.headMesh;
-const headBox = new THREE.Box3().setFromBufferAttribute(head.geometry.attributes.position);
-let fullSphereTris = 104 * 76 * 2;
-const headTris = head.geometry.index.count / 3;
-ok(head.geometry.attributes.position.count === (104 + 1) * (76 + 1), '头部顶点数符合球体细分', String(head.geometry.attributes.position.count));
-ok(headTris < fullSphereTris, '眼裂处三角面已被挖掉', `${Math.round(headTris)} < ${fullSphereTris}`);
-const removed = fullSphereTris - headTris;
-ok(removed > 12 && removed < 320, '只挖掉两个眼裂（没有误伤后脑）', `removed=${Math.round(removed)} (每只眼约 ${Math.round(removed / 2)} 面)`);
-ok(headTris > fullSphereTris * 0.97, '挖孔比例合理', `${(headTris / fullSphereTris * 100).toFixed(2)}%`);
-
-// 眼裂尺寸与"是否漏空"：直接在几何上求解"头部表面"与"眼球表面"的交线
+/* ========== A. 立绘资源 ========== */
+console.log('\n▍A 立绘资源');
 {
-  const nx = EYE.nx, ny = EYE.ny;
-  const nz = Math.sqrt(1 - nx * nx - ny * ny);
-  const surf = headToWorld(deformHead(nx, ny, nz, new THREE.Vector3()));
-  const eyeX = EYE.ipd * 0.5;
-  const zc = surf.z + EYE.protrude - EYE.radius;     // 球心 z
-  const R = EYE.radius;
-
-  // 沿水平/垂直方向找"头表面跑到眼球后面"的临界点
-  const edge = (axis) => {
-    let last = -1;
-    for (let i = 0; i <= 300; i++) {
-      const off = (i / 300) * 0.32;
-      const q = axis === 'h'
-        ? deformHead(nx + off, ny, Math.sqrt(Math.max(0.001, 1 - (nx + off) ** 2 - ny * ny)), new THREE.Vector3())
-        : deformHead(nx, ny + off, Math.sqrt(Math.max(0.001, 1 - nx * nx - (ny + off) ** 2)), new THREE.Vector3());
-      const w = headToWorld(q);
-      const u = axis === 'h' ? (w.x - eyeX) : (w.y - surf.y);
-      if (Math.abs(u) >= R) break;
-      const ballZ = zc + Math.sqrt(Math.max(0, R * R - u * u));
-      if (ballZ > w.z) last = Math.abs(u);      // 眼球在头表面之前 → 这个方向是"洞"
-      else break;                                // 头表面反超 → 洞到此为止
-    }
-    return last;
-  };
-  const halfW = edge('h'), halfH = edge('v');
-  const wMm = halfW * 2000, hMm = halfH * 2000;
-  ok(wMm > 15 && wMm < 36, '眼裂宽度 15~36mm', `${wMm.toFixed(1)}mm`);
-  ok(hMm > 7 && hMm < 20, '眼裂高度 7~20mm', `${hMm.toFixed(1)}mm`);
-  ok(hMm < wMm * 0.68, '眼裂是横向杏仁形', `h/w=${(hMm / wMm).toFixed(2)}`);
-  ok(halfW > 0 && halfH > 0, '眼球确实从挖孔中露出（不是被脸皮盖住）');
-
-  // 角膜顶点相对"未凹陷的脸面"的外凸量
-  const flat = headToWorld(deformHead(nx, ny, nz, new THREE.Vector3()));
-  const socketDepth = 0;
-  const apexZ = zc + R;
-  // 用同一高度但远离眼窝的一列作为脸面基准
-  const baseZ = headToWorld(deformHead(0.0, ny, Math.sqrt(1 - ny * ny), new THREE.Vector3())).z;
-  ok(apexZ - baseZ > -0.012 && apexZ - baseZ < 0.004, '角膜略低于鼻梁最高点（符合解剖）',
-    `${((apexZ - baseZ) * 1000).toFixed(1)}mm`);
-}
-
-/* ══════════ 3. 粒子 ══════════ */
-console.log('\n▍粒子');
-const rand = makeRandom(778899);
-const parts = buildParticles({ quality: QUALITY.high, characterGroup: character.group, pixelRatio: 1 });
-let pnan = 0, pcount = 0;
-parts.group.traverse(o => {
-  if (!o.isPoints) return;
-  pcount += o.geometry.attributes.position.count;
-  for (const k of ['position', 'aStart', 'aTarget', 'aColor', 'aSeed', 'aSize', 'aDir']) {
-    const a = o.geometry.attributes[k];
-    if (!a) { console.log(`    缺少属性 ${k}`); fail++; continue; }
-    for (let i = 0; i < a.array.length; i++) if (!Number.isFinite(a.array[i])) pnan++;
+  const dir = path.join(ROOT, 'assets', 'character');
+  for (const name of PORTRAIT.views) {
+    const webp = path.join(dir, `${name}.webp`);
+    const png = path.join(dir, `${name}.png`);
+    const hasWebp = fs.existsSync(webp);
+    const hasPng = fs.existsSync(png);
+    ok(hasWebp || hasPng, `${name}: 立绘就位`,
+      hasWebp ? `webp ${(fs.statSync(webp).size / 1024).toFixed(0)}KB`
+        : hasPng ? 'png（未跑预处理，页面会用 png）' : '缺失 → 页面显示占位提示');
   }
-});
-ok(pnan === 0, '粒子属性无 NaN', `points=${pcount} bad=${pnan}`);
-ok(pcount > QUALITY.high.particles, '粒子总数超过汇聚点数', `${pcount}`);
+}
+ok(PORTRAIT.views.length === 3, '三个视图（front / side / back）');
+ok(PORTRAIT.imgW === 1280 && PORTRAIT.imgH === 720, '取景基准尺寸正确', `${PORTRAIT.imgW}×${PORTRAIT.imgH}`);
 
-/* ══════════ 4. 着色器审计 ══════════ */
-console.log('\n▍着色器 uniform / varying 审计');
+/* ========== B. 分镜取景 ========== */
+console.log('\n▍B 分镜取景');
+ok(BEATS.length === 10, '分镜数量 = 10', String(BEATS.length));
+const headTop = 8, headBottom = 100, feetY = 700;
+const headH = headBottom - headTop;
+const get = id => BEATS.find(b => b.id === id);
 
+for (const id of ['hero', 'face']) {
+  const visibleH = get(id).frame.w / 1.7778;
+  ok(headH / visibleH > 0.68, `${id}: 头部撑满画面（占屏高 ≥68%）`,
+    `头 ${headH}px / 可见 ${visibleH.toFixed(0)}px = ${(headH / visibleH * 100).toFixed(0)}%`);
+}
+ok(get('feet').frame.cy > 600 && get('feet').frame.cy < feetY + 60, '赤足取景落在脚部',
+  `cy=${get('feet').frame.cy}`);
+ok(get('full').frame.w >= PORTRAIT.imgW * 0.85, '全身分镜能看到整个人', `w=${get('full').frame.w}`);
+
+const seq = ['face', 'neck', 'chest', 'waist', 'legs', 'feet'].map(id => get(id).frame.cy);
+let mono = true;
+for (let i = 1; i < seq.length; i++) if (seq[i] <= seq[i - 1]) mono = false;
+ok(mono, '取景自脸到脚单调下移（身体漫游成立）', seq.map(v => v.toFixed(0)).join(' → '));
+
+/* ========== C. 捏脸命中框 ========== */
+console.log('\n▍C 捏脸命中框');
+const fb = PORTRAIT.faceBox;
+ok(fb.y0 >= headTop && fb.y1 <= headBottom, '命中框在头部纵向范围内',
+  `y ${fb.y0}~${fb.y1} vs 头 ${headTop}~${headBottom}`);
+ok(fb.x0 > PORTRAIT.cx - 140 && fb.x1 < PORTRAIT.cx + 140, '命中框在头部横向范围内',
+  `x ${fb.x0}~${fb.x1}，中轴 ${PORTRAIT.cx}`);
+ok(Math.abs((fb.x0 + fb.x1) / 2 - PORTRAIT.cx) < 30, '命中框居中于人物中轴',
+  `偏差 ${((fb.x0 + fb.x1) / 2 - PORTRAIT.cx).toFixed(1)}px`);
+ok(PORTRAIT.pressRadius > 20 && PORTRAIT.pressRadius < 90, '按压半径合理', `${PORTRAIT.pressRadius}px`);
+ok(PORTRAIT.pressMax > 0.15 && PORTRAIT.pressMax < 0.75, '按压强度"有反馈但不撕裂"', `${PORTRAIT.pressMax}`);
+ok(PORTRAIT.pressHover > 0 && PORTRAIT.pressHover < PORTRAIT.pressMax, '悬停按压弱于按下按压');
+ok(PORTRAIT.turnDragPx > 150 && PORTRAIT.turnDragPx < 900, '转身拖拽灵敏度合理', `${PORTRAIT.turnDragPx}px/视图`);
+
+/* ========== D. 取景数学 ========== */
+console.log('\n▍D 取景数学（与 shader 同一套映射）');
+function resolveView(w, h, ww, zoom = 1) {
+  const A = w / h;
+  const portrait = A < 1.05;
+  const width = ww * zoom * (portrait ? PORTRAIT.portraitShrink : 1);
+  return { halfW: width / 2, halfH: width / 2 / A, A, visibleH: width / A, visibleW: width };
+}
+const heroW = get('hero').frame.w;
+const desktop = resolveView(1600, 900, heroW);
+ok(Math.abs(desktop.visibleH - heroW / 1.7778) < 0.5, '桌面：可见高 = 可见宽 / 宽高比',
+  `${desktop.visibleH.toFixed(1)}px`);
+const phone = resolveView(390, 844, heroW);
+ok(headH / phone.visibleH > 0.42, '竖屏首屏头部仍占满画面（≥42% 屏高）',
+  `头 ${headH}px / 可见 ${phone.visibleH.toFixed(0)}px = ${(headH / phone.visibleH * 100).toFixed(0)}%`);
+ok(headH / desktop.visibleH > 0.60, '桌面首屏头部撑满画面（≥60% 屏高）',
+  `${(headH / desktop.visibleH * 100).toFixed(0)}%`);
+
+function screenToImage(sx, sy, W, H, view) {
+  const s = { x: sx / W, y: 1 - sy / H };
+  return { x: view.cx + (s.x - 0.5) * 2 * view.halfW, y: view.cy + (0.5 - s.y) * 2 * view.halfH };
+}
+const v = { cx: PORTRAIT.cx, cy: get('hero').frame.cy, halfW: desktop.halfW, halfH: desktop.halfH };
+const mid = screenToImage(800, 450, 1600, 900, v);
+ok(Math.abs(mid.x - PORTRAIT.cx) < 0.01 && Math.abs(mid.y - v.cy) < 0.01, '屏幕中心 → 取景中心',
+  `(${mid.x.toFixed(1)}, ${mid.y.toFixed(1)})`);
+const tl = screenToImage(0, 0, 1600, 900, v);
+ok(tl.x < v.cx && tl.y < v.cy, '屏幕左上 → 取景左上', `(${tl.x.toFixed(0)}, ${tl.y.toFixed(0)})`);
+
+ok(desktop.visibleH < PORTRAIT.pinchMaxViewH, '首屏满足捏脸放大门控',
+  `${desktop.visibleH.toFixed(0)} < ${PORTRAIT.pinchMaxViewH}`);
+const fullView = resolveView(1600, 900, get('full').frame.w);
+ok(fullView.visibleH > PORTRAIT.pinchMaxViewH, '全身景别自动关闭捏脸（脸太小）',
+  `${fullView.visibleH.toFixed(0)} > ${PORTRAIT.pinchMaxViewH}`);
+
+/* ========== E. 着色器审计 ========== */
+console.log('\n▍E 着色器 uniform / varying 审计');
 function parseDecls(src, kind) {
   const out = [];
   const re = new RegExp(`\\b${kind}\\s+(?:(?:highp|mediump|lowp)\\s+)?(\\w+)\\s+([^;]+);`, 'g');
   let m;
   while ((m = re.exec(src))) {
-    const type = m[1];
     for (const part of m[2].split(',')) {
       const name = part.trim().split(/[\s=\[]/)[0];
-      if (name) out.push({ type, name });
+      if (name) out.push({ type: m[1], name });
     }
   }
   return out;
 }
+const BUILTIN = new Set(['modelMatrix', 'modelViewMatrix', 'projectionMatrix', 'viewMatrix',
+  'normalMatrix', 'cameraPosition', 'isOrthographic']);
+const KNOWN = new Set(['float', 'int', 'bool', 'vec2', 'vec3', 'vec4', 'mat3', 'mat4', 'sampler2D']);
 
-const materials = {
-  skin: S.makeSkinMaterial({ shared, lights: LIGHTS, pinched: true }),
-  skinBody: S.makeSkinMaterial({ shared, lights: LIGHTS, pinched: false }),
-  eye: S.makeEyeMaterial({ lights: LIGHTS }),
-  hair: S.makeHairMaterial({ shared, lights: LIGHTS }),
-  fabric: S.makeFabricMaterial({ shared, lights: LIGHTS }),
-  outline: S.makeOutlineMaterial({ shared, lights: LIGHTS }),
-  grade: new THREE.ShaderMaterial(S.GradeShader),
-  particles: createParticleMaterial(1)
-};
-
-const KNOWN_UNIFORM_TYPES = new Set(['float', 'int', 'bool', 'vec2', 'vec3', 'vec4', 'mat3', 'mat4', 'sampler2D']);
-
-for (const [name, mat] of Object.entries(materials)) {
-  const vu = parseDecls(mat.vertexShader, 'uniform').filter(d => KNOWN_UNIFORM_TYPES.has(d.type));
-  const fu = parseDecls(mat.fragmentShader, 'uniform').filter(d => KNOWN_UNIFORM_TYPES.has(d.type));
-  const declared = new Set([...vu, ...fu].map(d => d.name));
+function auditMaterial(name, mat) {
+  const declared = new Set([
+    ...parseDecls(mat.vertexShader, 'uniform'),
+    ...parseDecls(mat.fragmentShader, 'uniform')
+  ].filter(d => KNOWN.has(d.type)).map(d => d.name));
   const provided = new Set(Object.keys(mat.uniforms));
+  const missing = [...declared].filter(n => !provided.has(n) && !BUILTIN.has(n));
+  ok(missing.length === 0, `[${name}] GLSL 声明的 uniform 都有 JS 值`, missing.join(', '));
 
-  const missing = [...declared].filter(n => !provided.has(n));
-  const unused = [...provided].filter(n => !declared.has(n));
-  // three 内置 uniform 不需要自己提供
-  const BUILTIN = new Set(['modelMatrix', 'modelViewMatrix', 'projectionMatrix', 'viewMatrix', 'normalMatrix', 'cameraPosition', 'isOrthographic']);
-  const realMissing = missing.filter(n => !BUILTIN.has(n));
-
-  ok(realMissing.length === 0, `[${name}] GLSL 里声明的 uniform 都有 JS 值`, realMissing.join(', '));
-  if (unused.length) console.log(`    · 提示：[${name}] JS 侧多余 uniform（无害）：${unused.join(', ')}`);
-
-  // varying 匹配
   const vv = parseDecls(mat.vertexShader, 'varying');
   const fv = parseDecls(mat.fragmentShader, 'varying');
-  const fvMap = new Map(fv.map(d => [d.name, d.type]));
-  const bad = vv.filter(d => fvMap.has(d.name) && fvMap.get(d.name) !== d.type);
-  const notWritten = fv.filter(d => !vv.some(v => v.name === d.name));
-  ok(bad.length === 0, `[${name}] varying 类型一致`, bad.map(d => d.name).join(', '));
-  ok(notWritten.length === 0, `[${name}] fragment 用到的 varying 都在 vertex 里写出`, notWritten.map(d => d.name).join(', '));
+  const typeOf = new Map(vv.map(d => [d.name, d.type]));
+  const mismatch = fv.filter(d => typeOf.has(d.name) && typeOf.get(d.name) !== d.type);
+  const orphan = fv.filter(d => !typeOf.has(d.name));
+  ok(mismatch.length === 0, `[${name}] varying 类型一致`, mismatch.map(d => d.name).join(', '));
+  ok(orphan.length === 0, `[${name}] fragment 的 varying 都在 vertex 写出`, orphan.map(d => d.name).join(', '));
 }
 
-/* ── 自定义 attribute ── */
-const hairAttrs = ['aTangent'];
-const declaredAttrs = parseDecls(materials.hair.vertexShader, 'attribute').map(d => d.name);
-ok(hairAttrs.every(a => declaredAttrs.includes(a)), '头发的 aTangent 已声明', declaredAttrs.join(','));
+const fake = new THREE.Texture();
+fake.image = { width: 2560, height: 1440 };
+const skinShared = { uTime: { value: 0 }, uReal: { value: 1 }, uSweepY: { value: 3 }, uSweepW: { value: 0.05 }, uSweepGlow: { value: 0 }, uFade: { value: 1 } };
+auditMaterial('portrait', createPortraitMaterial({
+  front: fake, side: fake, back: fake, texSize: { x: 2560, y: 1440 }, quality: QUALITY.high
+}));
+auditMaterial('skin', S.makeSkinMaterial({ shared: skinShared, lights: LEGACY.LIGHTS, pinched: true }));
+auditMaterial('eye', S.makeEyeMaterial({ lights: LEGACY.LIGHTS }));
+auditMaterial('hair', S.makeHairMaterial({ shared: skinShared, lights: LEGACY.LIGHTS }));
+auditMaterial('fabric', S.makeFabricMaterial({ shared: skinShared, lights: LEGACY.LIGHTS }));
+auditMaterial('outline', S.makeOutlineMaterial({ shared: skinShared, lights: LEGACY.LIGHTS }));
+auditMaterial('grade', new THREE.ShaderMaterial(S.GradeShader));
 
-/* ══════════ 5. 分镜配置 ══════════ */
-console.log('\n▍分镜与相机关键帧');
-const { BEATS } = await import('../src/config.js');
-ok(BEATS.length === 10, '分镜数量 = 10', `${BEATS.length}`);
-const heights = BEATS.map(b => b.cam.pos[1]);
-ok(heights[1] > 1.60 && heights[1] < 1.72, '第 2 个分镜（面容）镜头在脸部高度', `y=${heights[1]}`);
-ok(heights[heights.length - 1] > 0.8 && BEATS[BEATS.length - 1].cam.pos[2] > 2.0, '最后分镜拉远到全身');
-let mono = true;
-for (let i = 1; i < BEATS.length; i++) if (BEATS[i].cam.pos[1] > BEATS[i - 1].cam.pos[1] + 0.001) mono = false;
-// 除了最后一个"拉远"分镜，其余应该是往下走的
-// arms 分镜要抬头看手臂，允许一次回升
-const down = BEATS.slice(0, 8).map(b => b.cam.pos[1]);
-let rises = 0;
-for (let i = 1; i < down.length; i++) if (down[i] > down[i - 1] + 0.001) rises++;
-mono = rises <= 1 && down[7] < down[2];
-ok(mono, '镜头高度自脸到脚单调下移（拉远分镜除外）', down.map(v => v.toFixed(2)).join(' → '));
+/* ========== F. 可选模块 ========== */
+console.log('\n▍F 可选模块：程序化数字人（页面默认不加载）');
+try {
+  const { buildCharacter } = await import('../src/three/character.js');
+  const character = buildCharacter({ quality: LEGACY.QUALITY.high, shared: skinShared, lights: LEGACY.LIGHTS });
+  character.group.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  let tris = 0, nan = 0;
+  character.group.traverse(o => {
+    if (!o.isMesh) return;
+    const g = o.geometry;
+    tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+    for (const val of g.attributes.position.array) if (!Number.isFinite(val)) nan++;
+    box.union(new THREE.Box3().setFromBufferAttribute(g.attributes.position).applyMatrix4(o.matrixWorld));
+  });
+  ok(nan === 0, '假人几何无 NaN');
+  ok(Math.abs(box.min.y) < 0.02 && box.max.y > 1.7 && box.max.y < 1.86,
+    '假人比例正常（脚底贴地 / 身高约 1.78m）', `y=[${box.min.y.toFixed(3)}, ${box.max.y.toFixed(3)}]`);
+  ok(tris > 15000, '假人三角面数量合理', String(Math.round(tris)));
+} catch (e) {
+  ok(false, '假人模块仍可构建', e.message);
+}
+
+/* ========== G. 明亮主题 ========== */
+console.log('\n▍G 明亮主题');
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const lum = h => { const [r, g, b] = hex2rgb(h); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+const relLum = h => {
+  const [r, g, b] = hex2rgb(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a, b) => {
+  const l1 = relLum(a), l2 = relLum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+};
+ok(lum(PALETTE.bg0) > 0.85, '背景明亮（不在暗色区间）', `${PALETTE.bg0} 亮度 ${lum(PALETTE.bg0).toFixed(2)}`);
+ok(lum(PALETTE.fg) < 0.2, '文字为深色', `${PALETTE.fg} 亮度 ${lum(PALETTE.fg).toFixed(2)}`);
+ok(contrast(PALETTE.fg, PALETTE.bg0) > 7, '正文对比度达 WCAG AAA',
+  `${contrast(PALETTE.fg, PALETTE.bg0).toFixed(1)}:1`);
+ok(contrast(PALETTE.accent, PALETTE.bg0) > 4.5, '围巾红对比度 ≥ AA',
+  `${contrast(PALETTE.accent, PALETTE.bg0).toFixed(1)}:1`);
+ok(INTRO.breathe <= 0.03 && INTRO.breathePeriod >= 4,
+  '呼吸补光极慢极小，不构成闪烁', `幅度 ${INTRO.breathe} / 周期 ${INTRO.breathePeriod}s`);
+ok(Object.values(QUALITY).every(q => q.grain <= 0.02), '颗粒极低，不会形成噪点闪烁');
+
+const cssPath = path.join(ROOT, 'styles', 'main.css');
+if (fs.existsSync(cssPath)) {
+  const css = fs.readFileSync(cssPath, 'utf8');
+  ok(!/#07070c|#12122b|#0c0c18|#08080f/i.test(css), 'CSS 无残留深色赛博底色');
+  const fast = [...css.matchAll(/animation:\s*[^;{}]*?([\d.]+)s[^;{}]*?infinite/g)]
+    .map(m => parseFloat(m[1])).filter(v => v < 4);
+  ok(fast.length === 0, 'CSS 无 <4s 的高频无限循环动画', fast.join(', '));
+  const blink = /@keyframes\s+\w*(blink|flicker|strobe|flash)\w*/i.test(css);
+  ok(!blink, 'CSS 无 blink / flicker / strobe / flash 关键帧');
+} else {
+  ok(false, 'styles/main.css 存在');
+}
 
 console.log(`\n${fail === 0 ? '✅ 全部通过' : `❌ ${fail} 项未通过`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -11,7 +11,7 @@ import {
   makeSkinMaterial, makeEyeMaterial, makeHairMaterial,
   makeFabricMaterial, makeOutlineMaterial
 } from './shaders.js';
-import { HEAD, PALETTE, makeRandom, sstep, clamp } from '../config.js';
+import { HEAD, PALETTE, makeRandom, sstep, clamp } from '../legacy-config.js';   // 可选模块专用配置（页面默认不加载）
 
 /* ══════════════ 头部单位空间变形 ══════════════ */
 

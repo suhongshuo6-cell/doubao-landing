@@ -30,7 +30,7 @@ export function createHud({ onNav, onQuality, onSound, onSkip } = {}) {
 
   if (el.year) el.year.textContent = String(new Date().getFullYear());
 
-  let cursorState = { active: false, pinch: false, down: false };
+  let cursorState = { active: false, pinch: false, drag: false, down: false };
   let solid = null, beatKey = null, pinchShown = null, dragShown = null;
 
   /* ── 光标 ── */
@@ -50,6 +50,7 @@ export function createHud({ onNav, onQuality, onSound, onSkip } = {}) {
     if (!el.cursor) return;
     el.cursor.classList.toggle('is-active', cursorState.active);
     el.cursor.classList.toggle('is-pinch', cursorState.pinch);
+    el.cursor.classList.toggle('is-drag', cursorState.drag && !cursorState.pinch);
     el.cursor.classList.toggle('is-down', cursorState.down);
   }
 
