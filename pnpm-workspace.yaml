@@ -1,7 +1,10 @@
 # pnpm 10+ 默认不执行依赖的构建脚本。esbuild 需要它来放置平台二进制，
 # 否则 vite 起不来、或构建中途卡死（不报错，只是挂着 —— 本地踩过）。
-# CI 用 pnpm 10，本地是 pnpm 11：两个版本读不同的键，所以两个都写上。
+# 注意两种键的**类型不同**：
+#   · pnpm 10 读 onlyBuiltDependencies —— 它是数组
+#   · pnpm 11 读 allowBuilds            —— 它是映射
+# 写反类型 pnpm 直接报 `settings.onlyBuiltDependencies.push is not a function`。
 onlyBuiltDependencies:
-  esbuild: true
+  - esbuild
 allowBuilds:
   esbuild: true
