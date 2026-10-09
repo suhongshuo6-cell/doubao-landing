@@ -163,6 +163,14 @@ export class ImageRigCharacter implements CharacterRig {
   }
 
   async load(): Promise<void> {
+    // 先拿清单：哪张板有背景层、主体包围盒在哪，都由它说了算
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}img/rig/manifest.json`)
+      if (res.ok) this.manifest = await res.json()
+    } catch {
+      // 没有清单也能跑：layered 默认按 true 处理，只是会多一次 _bg 探测
+    }
+
     const names = new Set<string>()
     for (const a of ANCHORS) {
       if (a.plate === 'body') BODY_VIEWS.forEach((v) => names.add(v))
@@ -177,10 +185,16 @@ export class ImageRigCharacter implements CharacterRig {
     )
     const backdrops = new Map<string, THREE.Texture>()
     for (const [name, tex] of subjects) {
+      // 脸部特写人像占满画面、没有背景层（manifest 里 layered=false）。
+      // 不探测直接退回原图 —— 否则会发一个注定 404 的请求，
+      // 虽然 catch 兜得住，但控制台会留一条红。
+      if (this.manifest[name]?.layered === false) {
+        backdrops.set(name, tex)
+        continue
+      }
       try {
         backdrops.set(name, await this.loadTexture(`${name}_bg.webp`))
       } catch {
-        // 脸部特写人像占满画面、没有可用背景 —— 退回原图，等于不做分层
         backdrops.set(name, tex)
       }
     }
@@ -207,13 +221,6 @@ export class ImageRigCharacter implements CharacterRig {
 
       shot.group.visible = false
       this.shots.push(shot)
-    }
-
-    try {
-      const res = await fetch(`${import.meta.env.BASE_URL}img/rig/manifest.json`)
-      if (res.ok) this.manifest = await res.json()
-    } catch {
-      // 没有清单也能跑：移动端会退回 cover 行为，只是构图不如有清单时准
     }
 
     this.resize()
