@@ -166,6 +166,11 @@ function boot(): void {
     const ndc = new THREE.Vector2(0, 0)
     const hitPoint = new THREE.Vector3()
     const ring = document.getElementById('pinchRing')
+    const hud = document.getElementById('interactionHud')
+    const hudStatus = document.getElementById('interactionStatus')
+    const hudCount = document.getElementById('interactionCount')
+    const hudLine = document.getElementById('interactionLine')
+    const whisper = document.getElementById('characterWhisper')
     const ringX = createSpring(SPRING.pointer)
     const ringY = createSpring(SPRING.pointer)
     const rootEl = document.documentElement
@@ -177,6 +182,42 @@ function boot(): void {
     let hoveringFace = false
     let pressOrigin: { x: number; y: number } | null = null
     let longPressTimer = 0
+    let lastPressing = false
+    let whisperTimer = 0
+    let audioContext: AudioContext | null = null
+
+    const say = (text: string): void => {
+      if (!whisper) return
+      whisper.textContent = text
+      whisper.classList.add('is-visible')
+      window.clearTimeout(whisperTimer)
+      whisperTimer = window.setTimeout(() => whisper.classList.remove('is-visible'), 1500)
+    }
+    const blip = (pitch = 520): void => {
+      try {
+        audioContext ??= new AudioContext()
+        const osc = audioContext.createOscillator()
+        const gain = audioContext.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = pitch
+        gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.045, audioContext.currentTime + 0.012)
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.13)
+        osc.connect(gain).connect(audioContext.destination)
+        osc.start()
+        osc.stop(audioContext.currentTime + 0.14)
+      } catch { /* 浏览器禁止自动音频时静默降级 */ }
+    }
+    const updateHud = (node: number): void => {
+      const part = Math.min(5, Math.max(1, node + 1))
+      const labels = ['FACE', 'NECK', 'SHAPE', 'WAIST', 'FEET']
+      const lines = ['移动视线，找到她的回应', '镜头继续下潜', '姿态已锁定', '腰线解锁，别太认真', '全部解锁']
+      hud?.classList.add('interaction-live')
+      if (hudStatus) hudStatus.textContent = labels[part - 1] ?? 'FACE'
+      if (hudCount) hudCount.textContent = `${String(part).padStart(2, '0')} / 05`
+      if (hudLine) hudLine.textContent = lines[part - 1] ?? lines[0]
+      hud?.querySelectorAll<HTMLElement>('.interaction-hud__meter i').forEach((el, i) => el.classList.toggle('is-on', i < part))
+    }
 
     const cancelPress = (): void => {
       window.clearTimeout(longPressTimer)
@@ -238,6 +279,19 @@ function boot(): void {
       cancelPress()
     })
 
+    window.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('a, button, [data-no-pinch]')) return
+      const framing = rig.framing
+      if (framing < PINCH_GATE && hoveringFace) {
+        say('轻一点。')
+        blip(440)
+      } else if (framing > 0.72) {
+        say(framing > 0.9 ? '脚也看到了。' : '镜头还在继续。')
+        blip(620)
+      }
+    }, { passive: true })
+
     /* ---- 自适应画质（规格第九节：中端集显稳定 60fps）---- */
     const quality = { window: 0, frames: 0, goodStreak: 0, paused: true }
 
@@ -283,6 +337,13 @@ function boot(): void {
         character.update(dt)
       }
 
+      if (pressing && !lastPressing) blip(360)
+      lastPressing = pressing
+      if (canvas) {
+        const breathe = Math.sin(performance.now() * 0.00135) * 0.7
+        canvas.style.transform = `translate3d(0, ${breathe.toFixed(2)}px, 0)`
+      }
+
       // ---- 面部命中与捏脸 ----
       hoveringFace = false
       if (character && pointerInside && rig.framing < PINCH_GATE) {
@@ -316,6 +377,8 @@ function boot(): void {
       if (rig.nodeIndex !== lastNode) {
         lastNode = rig.nodeIndex
         rail.setActive(lastNode)
+        updateHud(lastNode)
+        if (lastNode > 0) blip(500 + lastNode * 38)
       }
 
       updateQuality(dt)

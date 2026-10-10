@@ -400,6 +400,12 @@
 
     <!-- 捏脸光标环：1px、--brand、透明度 0.25，克制到几乎看不见 -->
     <div class="pinch-ring" id="pinchRing" aria-hidden="true"></div>
+    <aside class="interaction-hud" id="interactionHud" aria-live="polite" aria-atomic="true">
+      <div class="interaction-hud__top"><span id="interactionStatus">LOOK AROUND</span><b id="interactionCount">01 / 05</b></div>
+      <div class="interaction-hud__meter"><i></i><i></i><i></i><i></i><i></i></div>
+      <p id="interactionLine">移动视线，找到她的回应</p>
+    </aside>
+    <div class="character-whisper" id="characterWhisper" aria-live="polite"></div>
 
     <noscript>
       <div class="noscript">这个页面需要 JavaScript 才能渲染 3D 角色，上方的文字内容仍然可以正常阅读。</div>

@@ -1108,6 +1108,26 @@ html.pinch-pressing body {
   cursor: grabbing;
 }
 
+/* 互动 HUD：只在角色有回应时亮起，像广告片里的游戏提示层。 */
+.interaction-hud {
+  position: fixed; right: clamp(18px, 4vw, 64px); top: 50%; z-index: var(--z-ui);
+  width: min(190px, 34vw); padding: 12px 14px 11px; border: 1px solid var(--line);
+  border-radius: 14px; background: color-mix(in srgb, var(--surface) 82%, transparent);
+  box-shadow: var(--shadow-1); backdrop-filter: blur(14px); opacity: 0;
+  transform: translate3d(18px, -50%, 0); pointer-events: none;
+  transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out);
+}
+html.interaction-live .interaction-hud { opacity: 1; transform: translate3d(0, -50%, 0); }
+.interaction-hud__top { display: flex; justify-content: space-between; gap: 12px; font-size: 10px; letter-spacing: .14em; color: var(--ink-3); }
+.interaction-hud__top b { color: var(--brand); font-weight: 650; }
+.interaction-hud__meter { display: flex; gap: 4px; margin: 9px 0 7px; }
+.interaction-hud__meter i { display: block; height: 2px; flex: 1; border-radius: 4px; background: var(--line); transition: background 300ms var(--ease-out), transform 300ms var(--ease-out); }
+html.interaction-live .interaction-hud__meter i.is-on { background: var(--brand); transform: scaleY(2); }
+.interaction-hud p { color: var(--ink-2); font-size: 11px; line-height: 1.45; }
+.character-whisper { position: fixed; left: 50%; bottom: 13vh; z-index: var(--z-ui); transform: translate(-50%, 10px); padding: 8px 14px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 88%, transparent); color: var(--surface); font-size: 12px; letter-spacing: .08em; opacity: 0; pointer-events: none; transition: opacity 250ms var(--ease-out), transform 250ms var(--ease-out); }
+.character-whisper.is-visible { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 700px) { .interaction-hud { top: auto; right: 14px; bottom: 18px; width: 164px; transform: translate3d(18px, 0, 0); } html.interaction-live .interaction-hud { transform: translate3d(0, 0, 0); } .character-whisper { bottom: 22vh; } }
+
 /* reduced-motion 下横向 pin 被关掉，卡片必须回到"能正常读完"的静态列表，
    否则后三张卡永远滚不到 */
 .s-cap.is-static {
