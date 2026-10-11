@@ -19,10 +19,10 @@ export interface ChapterDef {
 }
 
 export const CHAPTERS: readonly ChapterDef[] = [
-  { id: 'hear', no: '01', label: '听见', status: 'CHAPTER · 听见', section: 'command-stage', temp: 'warm' },
-  { id: 'understand', no: '02', label: '理解', status: 'CHAPTER · 理解', section: 'context-orbit', temp: 'neutral' },
-  { id: 'create', no: '03', label: '创作', status: 'CHAPTER · 创作', section: 'morph-workbench', temp: 'cool' },
-  { id: 'done', no: '04', label: '完成', status: 'CHAPTER · 完成', section: 'replay-cta', temp: 'warm' },
+  { id: 'hear', no: '01', label: '听见', status: 'CHAPTER · 听见', section: 'hero', temp: 'warm' },
+  { id: 'understand', no: '02', label: '理解', status: 'CHAPTER · 理解', section: 'positioning', temp: 'neutral' },
+  { id: 'create', no: '03', label: '创作', status: 'CHAPTER · 创作', section: 'capabilities', temp: 'cool' },
+  { id: 'done', no: '04', label: '完成', status: 'CHAPTER · 完成', section: 'ctaStage', temp: 'warm' },
 ] as const
 
 export interface ChapterHooks {
