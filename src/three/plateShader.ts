@@ -234,48 +234,26 @@ const FRAGMENT = /* glsl */ `
       vec3 warm = vec3(0.38, 0.14, 0.14);
       // 口腔：上下缘偏暖（唇内侧），中间最深 —— 对比拉高让白齿更跳
       vec3 col = mix(warm, dark, smoothstep(0.0, 0.5, tg) * smoothstep(1.0, 0.55, tg));
-      // 上齿：7 颗独立软圆角块 + 细缝，沿唇弧弯曲，带软高光（非整条白带）
+      // 上齿：一条连续柔和白带（不分颗），软边 + 釉质高光
       float teethOpen = smoothstep(mix(2.2, 1.2, smile), mix(5.0, 3.2, smile), span);
-      float teethW = smoothstep(0.06, 0.52, w);
-      float rowVis = max(teethOpen * mix(0.82, 0.97, smile), smoothstep(2.0, 4.5, span) * 0.9);
-      const float NTEETH = 7.0;
-      float rowHalf = mix(0.80, 0.88, smile);
-      float uu = clamp(u / max(rowHalf, 0.001), -1.0, 1.0);
-      float cell = (uu * 0.5 + 0.5) * NTEETH;
-      float idx = floor(cell);
-      float local = fract(cell);
-      // 细暗缝；齿块两侧用更软的 smoothstep 做成圆角感
-      float gap = mix(0.12, 0.10, smile);
-      float mx = smoothstep(gap * 0.55, gap + 0.08, local)
-               * (1.0 - smoothstep(1.0 - gap - 0.08, 1.0 - gap * 0.55, local));
-      // 水平中心加权 → 每颗更像圆角矩形
-      float lx = abs(local - 0.5) * 2.0;
-      mx *= 1.0 - smoothstep(0.72, 1.05, lx) * 0.35;
-      // 唇弧：中齿下垂更多，整体随 uu² 弯曲
-      float arc = 0.07 * (1.0 - uu * uu) + 0.02 * smile;
-      float tTop = mix(0.025, 0.045, smile) + 0.012 * uu * uu; // 侧齿顶缘略上收
-      float tBot = mix(0.36, 0.48, smile) + arc;
-      float my = smoothstep(tTop, tTop + 0.07, tg) * (1.0 - smoothstep(tBot - 0.10, tBot, tg));
-      // 下缘左右再收一点 = 圆角底
-      my *= 1.0 - smoothstep(0.65, 1.0, lx) * smoothstep(tBot - 0.14, tBot, tg) * 0.55;
-      float side = abs((idx + 0.5) / NTEETH - 0.5) * 2.0;
-      my *= mix(1.0, 0.80, side * side);
-      float toothMask = clamp(mx * my, 0.0, 1.0);
-      // 缝加深，保持分颗可读
-      float gapMask = (1.0 - mx) * smoothstep(tTop, tBot, tg) * (1.0 - smoothstep(tBot, tBot + 0.08, tg))
-                    * rowVis * teethW * 0.5;
-      col = mix(col, dark * 0.5, gapMask);
+      float teethW = smoothstep(0.06, 0.55, w);
+      // 带厚：微笑略厚；上下缘用宽 smoothstep 做成软边
+      float bandHi = mix(0.20, 0.28, smile);
+      float bandLo = mix(0.40, 0.50, smile);
+      float teethBand = smoothstep(0.0, bandHi * 0.7, tg) * (1.0 - smoothstep(bandHi, bandLo, tg));
+      // 两侧随嘴角自然收束（已有 teethW），不再切成块
+      float teethAmt = teethBand * teethOpen * teethW * mix(0.80, 0.96, smile);
+      teethAmt = max(teethAmt, teethBand * smoothstep(2.0, 4.5, span) * teethW * 0.88);
       vec3 teethLo = vec3(0.91, 0.89, 0.85);
-      vec3 teethHi = vec3(0.988, 0.978, 0.96);
-      vec3 teeth = mix(teethLo, teethHi, smoothstep(tTop, tBot * 0.5, tg));
-      // 每颗独立软高光（偏上缘中线）
-      float glaze = exp(-pow((tg - (tTop + 0.08)) / 0.07, 2.0))
-                  * exp(-pow((local - 0.5) / 0.28, 2.0))
-                  * mix(0.38, 0.58, smile);
-      teeth = mix(teeth, vec3(1.0, 0.996, 0.988), clamp(glaze, 0.0, 1.0));
-      float tipShade = smoothstep(tBot - 0.14, tBot - 0.02, tg) * mx * 0.22;
+      vec3 teethHi = vec3(0.985, 0.975, 0.955);
+      vec3 teeth = mix(teethLo, teethHi, smoothstep(bandHi * 0.15, bandHi * 0.85, tg));
+      // 顶缘连续釉质高光（非整块闪点）
+      float glaze = (1.0 - smoothstep(0.0, bandHi * 0.75, tg))
+                  * teethOpen * teethW * mix(0.38, 0.58, smile);
+      teeth = mix(teeth, vec3(1.0, 0.995, 0.985), clamp(glaze, 0.0, 1.0));
+      // 下缘微暗，贴口腔过渡更自然
+      float tipShade = smoothstep(bandHi * 0.85, bandLo, tg) * 0.14;
       teeth *= 1.0 - tipShade;
-      float teethAmt = toothMask * rowVis * teethW;
       col = mix(col, teeth, clamp(teethAmt, 0.0, 0.97));
       float e = min(p.y - (seam - up), seam + g - p.y);
       float edge = smoothstep(-0.3, 1.6, e);
