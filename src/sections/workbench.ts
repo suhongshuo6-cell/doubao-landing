@@ -52,7 +52,7 @@ export function initWorkbench(_loop: FrameLoop): () => void {
     tabsBar.innerHTML =
       MODES.map(
         (m, i) =>
-          `<button type="button" class="wb-tab${i === 0 ? ' is-active' : ''}" role="tab" data-wb="${m.id}" aria-selected="${i === 0}" data-magnetic>${m.label}</button>`,
+          `<button type="button" class="wb-tab${i === 0 ? ' is-active' : ''}" role="tab" data-wb="${m.id}" aria-selected="${i === 0 ? 'true' : 'false'}" data-magnetic>${m.label}</button>`,
       ).join('') + `<i class="wb-tab__pill" aria-hidden="true"></i>`
     const head = section.querySelector('.s-cap__head')
     head?.insertAdjacentElement('afterend', tabsBar)
@@ -110,11 +110,13 @@ export function initWorkbench(_loop: FrameLoop): () => void {
 
   // 写作微型演示
   const draft = writeCard.querySelector<HTMLElement>('[data-write-draft]')
-  writeCard.querySelectorAll<HTMLButtonElement>('[data-write-op]').forEach((btn) => {
+  const writeChipBtns = Array.from(writeCard.querySelectorAll<HTMLButtonElement>('[data-write-op]'))
+  writeChipBtns.forEach((btn) => {
     const onOp = (): void => {
       const op = btn.dataset.writeOp ?? ''
       const next = WRITE_VARIANTS[op]
       if (!draft || !next) return
+      writeChipBtns.forEach((b) => b.classList.toggle('is-fired', b === btn))
       draft.textContent = next
       if (!motionPrefs.reduced) {
         gsap.fromTo(draft, { opacity: 0.35, y: 8 }, { opacity: 1, y: 0, duration: 0.32, ease: EASE_IN })
@@ -184,6 +186,13 @@ export function initWorkbench(_loop: FrameLoop): () => void {
     if (metaIndex) metaIndex.textContent = String(idx + 1).padStart(2, '0')
     section.dataset.wb = next
     mode = next
+    if (!motionPrefs.reduced) {
+      gsap.fromTo(
+        metaBox,
+        { opacity: 0.55, y: 8 },
+        { opacity: 1, y: 0, duration: 0.34, ease: EASE_IN, overwrite: true },
+      )
+    }
 
     if (activeCard && !motionPrefs.reduced) {
       const last = activeCard.getBoundingClientRect()

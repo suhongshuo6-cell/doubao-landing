@@ -1274,6 +1274,13 @@ h1.hero__claim {
 .s-cap .cap-card__index {
   text-shadow: none;
 }
-.s-cap.is-workbench .wb-meta + .s-cap__viewport .cap-card {
+.s-cap.is-workbench .wb-meta + .s-cap__viewport .cap-card,
+.s-cap.is-workbench .cap-card.is-wb-active {
   background: #12141c;
+}
+/* writing pane: never inherit terminal light ink onto the light draft box */
+.s-cap .wb-write__draft,
+.cap-card .wb-write__draft {
+  color: var(--ink);
+  background: #fff;
 }
