@@ -3,6 +3,7 @@ import type { FrameLoop } from '../lib/frameLoop'
 import { createSpring, SPRING } from '../lib/spring'
 import { initCapabilityDemos } from './capabilityDemos'
 import { bindTiltPress } from '../lib/tiltPress'
+import { initWorkbench } from './workbench'
 
 /**
  * 能力区「四件事」—— 横向轨道（非竖滚 pin）
@@ -19,6 +20,16 @@ export function initCapabilities(loop: FrameLoop): () => void {
 
   const stopDemos = initCapabilityDemos({ loop })
   const stopTilt = bindTiltPress('#capabilities .cap-card')
+  const stopWb = initWorkbench(loop)
+  // 工作台模式：不再走横向轨道，避免与 FLIP 面板抢手势
+  if (section.classList.contains('is-workbench')) {
+    return () => {
+      stopTilt()
+      stopDemos()
+      stopWb()
+    }
+  }
+
   ensureControls(section, viewport)
 
   const rail = section.querySelector<HTMLElement>('.cap-rail')
@@ -32,6 +43,7 @@ export function initCapabilities(loop: FrameLoop): () => void {
       section.classList.remove('is-static')
       stopTilt()
       stopDemos()
+      stopWb()
     }
   }
 
@@ -222,6 +234,7 @@ export function initCapabilities(loop: FrameLoop): () => void {
   syncUi()
 
   destroyers.push(stopTilt)
+  destroyers.push(stopWb)
 
   return () => {
     section.classList.remove('is-hscroll', 'is-static')
