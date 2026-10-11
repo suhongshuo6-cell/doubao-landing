@@ -53,7 +53,10 @@ function detectIntent(text: string, history: ChatTurn[]): Intent {
   if (/口语|练口语|发音|英语对话/.test(t)) return 'speak'
   if (/计划|行程|待办|四象限|排期|行程/.test(t)) return 'plan'
   if (/比较|对比|取舍|哪个好|方案/.test(t)) return 'compare'
+  if (/看图|这张图|图里|图片里|看看这/.test(t)) return 'image'
   if (/画|图像|配图|插画|生成图|换背景/.test(t)) return 'image'
+  if (/安排今天|今天安排|今日计划|安排一下今天/.test(t)) return 'plan'
+  if (/创意|点子|灵感|脑暴|idea/.test(t)) return 'name'
   if (/搜|查一下|最新|联网|新闻/.test(t)) return 'search'
   if (/周报|邮件|文案|改写|客气|润色|大纲|写成/.test(t)) return 'write'
   if (/怎么用|能做什么|你会什么|场景/.test(t)) return 'howto'
@@ -121,8 +124,10 @@ function craft(intent: Intent, text: string, history: ChatTurn[]): FakeReply {
       }
     case 'name':
       return {
-        text: `给你 8 个候选（偏产品向）：闪记、轻航、并线、回声台、速览、脉语、澄镜、顺口。\n喜欢「短 / 科技 / 温暖」哪条气质？我再筛一轮。`,
-        followups: ['偏温暖', '偏极简', '再来 8 个'],
+        text: /创意|点子|灵感|脑暴/.test(text)
+          ? `给你 3 个可落地的创意方向：\n1) 「对话舞台」— 滚动换镜头，输入改场景\n2) 「能力变色龙」— 同一面板 FLIP 切换五态\n3) 「章节呼吸」— 01听见→04完成，轨道节点扩散\n\n选一个，我帮你拆成今晚就能做的小任务。`
+          : `给你 8 个候选（偏产品向）：闪记、轻航、并线、回声台、速览、脉语、澄镜、顺口。\n喜欢「短 / 科技 / 温暖」哪条气质？我再筛一轮。`,
+        followups: ['拆成任务', '再来 3 个', '偏温暖'],
       }
     case 'speak':
       return {
@@ -131,7 +136,9 @@ function craft(intent: Intent, text: string, history: ChatTurn[]): FakeReply {
       }
     case 'plan':
       return {
-        text: `先按紧急/重要四象限排一版示意：\n· 紧急且重要：周四杭州往返票；下午会材料\n· 重要不紧急：周报口径统一；双十一锁仓\n· 紧急不重要：群里表情包投票（可延后）\n· 都不：无脑刷资讯\n\n把你的待办列表贴过来，我重排。`,
+        text: /今天|今日/.test(text)
+          ? `今天可以这样排（示意）：\n09:30 深度块 · 写周报大纲（45min）\n11:00 短会 · 对齐口径\n14:00 动手 · 能力沙盒试图像拖杆\n16:30 收束 · 待办三件清掉\n21:00 轻松 · 练 10 分钟口语\n\n要我按你真实日历重排吗？`
+          : `先按紧急/重要四象限排一版示意：\n· 紧急且重要：周四杭州往返票；下午会材料\n· 重要不紧急：周报口径统一；双十一锁仓\n· 紧急不重要：群里表情包投票（可延后）\n· 都不：无脑刷资讯\n\n把你的待办列表贴过来，我重排。`,
         followups: ['只要今天的', '标耗时', '做成清单'],
       }
     case 'compare':
@@ -141,8 +148,10 @@ function craft(intent: Intent, text: string, history: ChatTurn[]): FakeReply {
       }
     case 'image':
       return {
-        text: `图像这边在本页是沙盒示意：换背景 / 涂抹重组 / 扩画幅。真生成需要接创作接口。\n你可以用一句话描述构图，我先写成可投模型的提示词。`,
-        followups: ['写一条提示词', '改成扁平插画风', '去能力区试试'],
+        text: /看图|这张图|图里|看看这/.test(text)
+          ? `（示意看图）我看到主体偏中景、光线柔和。可提炼：\n1) 主物体与前后景层次\n2) 色温偏暖米白\n3) 可改：换背景 / 补光 / 扩画幅\n\n要我写成可投模型的提示词，还是去能力区拖杆对比？`
+          : `图像这边在本页是沙盒示意：换背景 / 涂抹重组 / 扩画幅。真生成需要接创作接口。\n你可以用一句话描述构图，我先写成可投模型的提示词。`,
+        followups: ['写一条提示词', '换背景试试', '去能力区拖杆'],
       }
     case 'search':
     case 'weather':
