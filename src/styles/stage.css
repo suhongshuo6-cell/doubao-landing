@@ -200,12 +200,28 @@ html.intro-playing .s-hero__wash { will-change: filter, opacity; }
   display: flex; gap: 14px; align-items: flex-start;
   margin: 0 auto 16px; max-width: 920px;
   transform: translateY(var(--chapter-shift));
+  /* 对比度：深色角色背景上必须有浅色底板 */
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-1);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  color: var(--ink);
+  box-sizing: border-box;
 }
 .wb-meta__index {
   font-size: 12px; letter-spacing: .16em; color: var(--brand); font-weight: 700; padding-top: 4px;
+  flex: 0 0 auto;
 }
-.wb-meta__title { display: block; font-size: 1.15rem; margin-bottom: 4px; }
-.wb-meta__lead { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); max-width: 52ch; }
+.wb-meta__title {
+  display: block; font-size: 1.15rem; margin-bottom: 6px;
+  color: var(--ink); font-weight: 650; line-height: 1.35;
+}
+.wb-meta__lead {
+  margin: 0; color: var(--ink-2); font-size: var(--fs-sm); max-width: 52ch; line-height: 1.65;
+}
 
 .wb-write__draft {
   padding: 14px 16px; border-radius: 14px; background: #fff;
