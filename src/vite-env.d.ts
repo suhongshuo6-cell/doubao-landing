@@ -7,6 +7,10 @@ interface ImportMetaEnv {
   readonly VITE_ARK_MODEL?: string
   /** 生产环境同源反代基址（含协议与域名，无尾斜杠）。不设则直连方舟（可能 CORS）。 */
   readonly VITE_ARK_BASE?: string
+  /** Dify Chat Messages API Key（会打进前端包；仅演示用） */
+  readonly VITE_DIFY_API_KEY?: string
+  /** Dify API 基址，如 https://api.dify.ai/v1 */
+  readonly VITE_DIFY_BASE_URL?: string
 }
 
 interface ImportMeta {

@@ -14,6 +14,13 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/ark-api/, ''),
       },
+      // Dify API (api.dify.ai) — 浏览器直连常遇 CORS；dev 走同源代理
+      '/dify-api': {
+        target: 'https://api.dify.ai',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/dify-api/, ''),
+      },
     },
   },
   build: {

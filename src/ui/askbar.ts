@@ -6,6 +6,7 @@
 import gsap from 'gsap'
 import { replyFake, getFakeHistory, rememberTurn, type FakeReply } from '../lib/fakeBrain'
 import { chatArk, hasArkKey, ARK_SYSTEM_PROMPT, type ArkMessage } from '../lib/doubaoClient'
+import { chatDify, hasDifyKey } from '../lib/difyClient'
 import { motionPrefs } from '../lib/motionPrefs'
 import { EASE_IN } from '../motion/eases'
 
@@ -61,6 +62,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
   let lastType = 0
   let disposed = false
   let busy = false
+  let difyConversationId = ''
   let attached: string | null = null
   let voiceHold = false
   let abort: AbortController | null = null
@@ -305,6 +307,39 @@ export function initAskbar(hooks: AskbarHooks): () => void {
     springHeight()
 
     const ai = appendBubble('豆包', '', 'ai')
+
+    // 优先 Dify（原生 askbar UI + SSE）；失败回退方舟 / 假智能
+    if (hasDifyKey()) {
+      abort?.abort()
+      abort = new AbortController()
+      const streamer = ai ? createStreamer(ai) : null
+      try {
+        const full = await chatDify({
+          query: text,
+          conversationId: difyConversationId || undefined,
+          stream: true,
+          signal: abort.signal,
+          onToken: (chunk) => streamer?.push(chunk),
+          onConversationId: (id) => {
+            difyConversationId = id
+          },
+        })
+        const answer = full.trim() || '（空响应）我换成本地助手继续帮你。'
+        rememberTurn(text, answer)
+        if (streamer) {
+          if (!full.trim()) streamer.set(answer)
+          streamer.finish(['再细一点', '换个说法', '继续追问'])
+        } else {
+          showLegacyReply(answer)
+          busy = false
+        }
+        return
+      } catch (err) {
+        console.info('[askbar] Dify 失败，尝试方舟 / 假智能', err)
+        if (streamer) streamer.set('')
+        // fall through to Ark / fake
+      }
+    }
 
     if (hasArkKey()) {
       abort?.abort()

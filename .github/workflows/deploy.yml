@@ -37,6 +37,11 @@ jobs:
         run: pnpm typecheck
 
       - name: Build
+        env:
+          # Homework demo: bake Dify key into static Pages bundle via repo secret.
+          # Repo Settings → Secrets and variables → Actions → VITE_DIFY_API_KEY
+          VITE_DIFY_API_KEY: ${{ secrets.VITE_DIFY_API_KEY }}
+          VITE_DIFY_BASE_URL: https://api.dify.ai/v1
         run: pnpm build
 
       - uses: actions/configure-pages@v5
