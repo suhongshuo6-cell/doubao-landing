@@ -5,6 +5,7 @@ import './styles/global.css'
 import './styles/gen2.css'
 import './styles/spectacle.css'
 import './styles/gen3.css'
+import './styles/stage.css'
 
 import gsap from 'gsap'
 
@@ -26,6 +27,8 @@ import { initScrambleReveal } from './motion/scramble'
 import { initVelocityMarquee } from './motion/marquee'
 import { initChapterGates } from './motion/gates'
 import { initEaster } from './fx/easter'
+import { initChapters } from './motion/chapters'
+import { initFeedback } from './ui/feedback'
 import type { CharacterRig } from './three/character'
 
 /**
@@ -83,6 +86,8 @@ function boot(): void {
   initContentSections({ scroll, loop })
   initSpectacle({ loop })
   initPolymorphCursor(loop)
+  initFeedback(loop)
+  initChapters({ loop, scroll })
   initScrambleReveal()
   initVelocityMarquee(scroll, loop)
 
