@@ -205,21 +205,21 @@ const FRAGMENT = /* glsl */ `
     return s;
   }
 
-  // 说话 / 微笑 = 沿唇缝把下唇向下推、上唇微微上提；微笑时嘴角上扬并露柔和上齿细条。
+  // 说话 / 微笑 = 沿唇缝把下唇向下推、上唇微微上提；微笑时嘴角上扬并露清晰上齿带。
   vec2 mouthWarp(vec2 p, inout vec4 inner, inout float lipShade) {
     float smile = clamp(uSmile, 0.0, 1.0);
-    float openPx = uMouthOpen + smile * 5.2; // 开心时轻微分唇
+    float openPx = uMouthOpen + smile * 9.5; // 开心：分唇够宽，上齿带可读
     if (openPx < 0.04 || p.x <= uMouthRange.x || p.x >= uMouthRange.y) return p;
     float mid = (uMouthRange.x + uMouthRange.y) * 0.5;
     float hw = (uMouthRange.y - uMouthRange.x) * 0.5;
     float u = (p.x - mid) / hw;
     float w = clamp(1.0 - u * u, 0.0, 1.0);
-    // 开口两头收尖：中间最大，嘴角几乎不动；微笑略加宽中段
-    float g = openPx * pow(w, mix(1.7, 1.35, smile));
-    float up = g * mix(0.45, 0.55, smile);
+    // 开口两头收尖：中间最大；微笑加宽中段
+    float g = openPx * pow(w, mix(1.7, 1.25, smile));
+    float up = g * mix(0.48, 0.62, smile);
     float seam = quadAt(uMouthQ, p.x);
     // 微笑：嘴角上扬（图像 y 向下，|u| 大处 seam 减小）
-    seam -= smile * 7.5 * pow(abs(u), 1.55);
+    seam -= smile * 8.5 * pow(abs(u), 1.5);
     const float RD = 70.0;   // 下唇 + 下巴参与形变的高度
     const float RU = 40.0;   // 上唇参与形变的高度
     vec2 s = p;
@@ -230,19 +230,27 @@ const FRAGMENT = /* glsl */ `
     } else if (p.y >= seam - up && p.y < seam + g) {
       float span = g + up;
       float tg = (p.y - (seam - up)) / max(span, 0.001);
-      vec3 dark = vec3(0.17, 0.05, 0.06);
-      vec3 warm = vec3(0.42, 0.16, 0.16);
-      // 口腔：上下缘偏暖（唇内侧），中间最深
+      vec3 dark = vec3(0.14, 0.04, 0.05);
+      vec3 warm = vec3(0.38, 0.14, 0.14);
+      // 口腔：上下缘偏暖（唇内侧），中间最深 —— 对比拉高让白齿更跳
       vec3 col = mix(warm, dark, smoothstep(0.0, 0.5, tg) * smoothstep(1.0, 0.55, tg));
-      // 上齿：柔和偏白细条（非卡通），微笑 / 轻说话即可露出
-      vec3 teeth = vec3(0.93, 0.91, 0.88);
-      float teethBand = (1.0 - smoothstep(0.0, mix(0.28, 0.38, smile), tg));
-      float teethOpen = smoothstep(mix(3.2, 2.0, smile), mix(6.5, 4.5, smile), span);
-      float teethW = smoothstep(0.18, 0.72, w);
-      float teethAmt = teethBand * teethOpen * teethW * mix(0.55, 0.82, smile);
-      // 轻说话（无微笑）也留一丝上齿
-      teethAmt = max(teethAmt, teethBand * smoothstep(3.8, 7.0, span) * teethW * 0.45);
-      col = mix(col, teeth, clamp(teethAmt, 0.0, 0.85));
+      // 上齿带：更白、更厚、更高不透明度；微笑与说话微张即可见
+      vec3 teethHi = vec3(0.98, 0.97, 0.95);
+      vec3 teethLo = vec3(0.90, 0.88, 0.84);
+      // 带厚约 span 的 22%~48%（微笑更厚），顶部高光
+      float bandHi = mix(0.22, 0.30, smile);
+      float bandLo = mix(0.42, 0.52, smile);
+      float teethBand = smoothstep(0.0, bandHi * 0.55, tg) * (1.0 - smoothstep(bandHi, bandLo, tg));
+      float teethOpen = smoothstep(mix(2.2, 1.2, smile), mix(5.0, 3.2, smile), span);
+      float teethW = smoothstep(0.08, 0.55, w);
+      float teethAmt = teethBand * teethOpen * teethW * mix(0.78, 0.96, smile);
+      // 说话微张：只要开口够也出清晰上齿
+      teethAmt = max(teethAmt, teethBand * smoothstep(2.0, 4.5, span) * teethW * 0.88);
+      vec3 teeth = mix(teethLo, teethHi, smoothstep(bandHi * 0.2, bandHi, tg));
+      // 顶缘一条更亮的釉质高光（自然，非卡通）
+      float glaze = (1.0 - smoothstep(0.0, bandHi * 0.7, tg)) * teethOpen * teethW * mix(0.35, 0.55, smile);
+      teeth = mix(teeth, vec3(1.0, 0.995, 0.98), glaze);
+      col = mix(col, teeth, clamp(teethAmt, 0.0, 0.97));
       float e = min(p.y - (seam - up), seam + g - p.y);
       float edge = smoothstep(-0.3, 1.6, e);
       inner = vec4(col, edge * smoothstep(0.0, 0.25, w) * smoothstep(0.4, 2.0, span));

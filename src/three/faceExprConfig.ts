@@ -45,7 +45,7 @@ export const FACE_EXPR = {
   /** 视线最大位移（px，原图尺度） */
   gazePx: [9.6, 4.8] as const,
   /** 说话时下唇最大下移（px） */
-  mouthOpenPx: 17,
+  mouthOpenPx: 20,
 }
 
 /** 三点 → y = a x² + b x + c（像素坐标） */

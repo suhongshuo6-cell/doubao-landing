@@ -336,15 +336,16 @@ export class FaceExpression {
     // ---------------- 说话：流式 token 脉冲驱动音节 ----------------
     let mouthTarget = 0
     if (f === 'talk') {
-      // 调试态也带一点开合，方便截图看得出"在说话"
+      // 调试态：保持微张～半开，上齿带始终可读
       const t = this.time
-      mouthTarget = 0.72 + 0.28 * Math.abs(Math.sin(t * 7.5))
+      mouthTarget = 0.78 + 0.22 * Math.abs(Math.sin(t * 6.8))
     } else if (this.speaking && !f) {
       const t = this.time
       const syl = Math.abs(Math.sin(t * 10.2) * 0.55 + Math.sin(t * 6.1 + 1.3) * 0.45)
-      const gate = Math.sin(t * 2.15) > -0.55 ? 1 : 0.12
-      const pulse = 0.15 + 0.55 * this.streamPulse
-      mouthTarget = clamp((0.28 + 0.72 * syl) * gate + pulse * syl, 0, 1.15) * (reduced ? 0.5 : 1)
+      const gate = Math.sin(t * 2.15) > -0.55 ? 1 : 0.22
+      const pulse = 0.2 + 0.55 * this.streamPulse
+      // 微张也够露齿：抬高地板
+      mouthTarget = clamp((0.42 + 0.7 * syl) * gate + pulse * syl, 0.28, 1.2) * (reduced ? 0.55 : 1)
     }
     // ---------------- 开心 / 听 / 想 → 眼睑 + 腮红 + 微笑嘴形 ----------------
     let happyTarget = 0
@@ -353,9 +354,9 @@ export class FaceExpression {
     this.happy = f ? happyTarget : expApproach(this.happy, happyTarget, happyTarget > this.happy ? 10 : 2.0, dt)
     const h = this.happy
 
-    // 微笑时轻微分唇（让上齿细条可见）；与说话开合取较大值
+    // 微笑：明显分唇（约 0.72 * mouthOpenPx + shader smile 加成），上齿带清晰
     if (h > 0.01 && f !== 'talk') {
-      mouthTarget = Math.max(mouthTarget, h * 0.38)
+      mouthTarget = Math.max(mouthTarget, h * 0.72)
     }
 
     this.mouth = f === 'talk'
