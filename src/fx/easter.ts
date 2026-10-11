@@ -114,7 +114,7 @@ function showAvatarTheater(onDone: () => void): void {
   el.className = 'avatar-theater'
   el.innerHTML = `
     <div class="avatar-theater__card">
-      <img src="/img/doubao-official-chibi.png" alt="" width="96" height="96" />
+      <img src="${import.meta.env.BASE_URL}img/doubao-official-chibi.png" alt="" width="96" height="96" />
       <p class="avatar-theater__title">你找到了隐藏剧场</p>
       <p class="avatar-theater__line">「今天也要好好聊天呀。」</p>
       <button type="button" class="avatar-theater__ok">好的，豆包</button>
