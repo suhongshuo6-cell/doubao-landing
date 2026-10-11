@@ -43,7 +43,7 @@ export const FACE_EXPR = {
   cheekL: { c: n(500, 262), r: [82, 52] as const },
   cheekR: { c: n(885, 214), r: [74, 48] as const },
   /** 视线最大位移（px，原图尺度） */
-  gazePx: [9.6, 4.8] as const,
+  gazePx: [13.2, 6.6] as const,  // slightly more obvious follow
   /** 说话时下唇最大下移（px） */
   mouthOpenPx: 20,
 }
