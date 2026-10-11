@@ -1,6 +1,7 @@
 import gsap from 'gsap'
 import { motionPrefs } from '../lib/motionPrefs'
 import { EASE_IN, EASE_OUT } from '../motion/eases'
+import { runHeroIntro } from '../motion/intro'
 
 /**
  * Hero —— 对话线程 + 可点选分支（换代交互）
@@ -24,7 +25,7 @@ const BRANCHES: Record<string, { user: string; ai: string; jump?: string }> = {
 }
 
 export function initHero(): () => void {
-  const destroyers: Array<() => void> = []
+  const destroyers: Array<() => void> = [runHeroIntro()]
 
   const msgs = Array.from(document.querySelectorAll<HTMLElement>('[data-hero-msg]'))
   const nextBtn = document.getElementById('heroNext') as HTMLButtonElement | null
