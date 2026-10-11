@@ -203,6 +203,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
     return {
       push(s: string) {
         queue += s
+        document.dispatchEvent(new CustomEvent('doubao:token'))
       },
       set(s: string) {
         queue = ''
@@ -298,6 +299,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
     }, 420)
     hooks.onSend(text, rect.left + rect.width / 2, rect.top)
     document.dispatchEvent(new CustomEvent('doubao:asked', { detail: { text } }))
+    document.dispatchEvent(new CustomEvent('doubao:thinking', { detail: { thinking: true } }))
     setSpeaking(true)
     appendBubble('你', text, 'user')
     input.value = ''
@@ -315,6 +317,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
     // 500ms 思考三点呼吸
     const think = appendBubble('豆包', '', 'think')
     await new Promise((r) => window.setTimeout(r, motionPrefs.reduced ? 80 : 500))
+    document.dispatchEvent(new CustomEvent('doubao:thinking', { detail: { thinking: false } }))
     think?.remove()
     springHeight()
 

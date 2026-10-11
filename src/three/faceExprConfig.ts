@@ -27,14 +27,14 @@ export const FACE_EXPR = {
   eyeL: {
     top: [n(450, 177), n(515, 141), n(587, 175)],
     bot: [n(450, 177), n(515, 193), n(587, 175)],
-    lidSkinPx: 30,
+    lidSkinPx: 38,
     lidRgb: [[158, 108, 94], [170, 122, 108]],
   } satisfies EyeSpec,
   /** 画面右侧那只眼（头部倾斜，眼裂约 -18°） */
   eyeR: {
     top: [n(763, 138), n(822, 82), n(893, 95)],
     bot: [n(763, 138), n(830, 136), n(893, 95)],
-    lidSkinPx: 28,
+    lidSkinPx: 36,
     lidRgb: [[184, 133, 118], [176, 124, 108]],
   } satisfies EyeSpec,
   /** 唇缝：左嘴角 / 中点 / 右嘴角 */
@@ -43,9 +43,9 @@ export const FACE_EXPR = {
   cheekL: { c: n(500, 262), r: [82, 52] as const },
   cheekR: { c: n(885, 214), r: [74, 48] as const },
   /** 视线最大位移（px，原图尺度） */
-  gazePx: [4.2, 2.2] as const,
+  gazePx: [11.2, 5.6] as const,
   /** 说话时下唇最大下移（px） */
-  mouthOpenPx: 9,
+  mouthOpenPx: 17,
 }
 
 /** 三点 → y = a x² + b x + c（像素坐标） */

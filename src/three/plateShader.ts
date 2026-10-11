@@ -162,21 +162,27 @@ const FRAGMENT = /* glsl */ `
     float bot = quadAt(B, p.x);
     float h = max(bot - top, 0.0);
     float skin = R.z * (0.35 + 0.65 * w);
-    const float BAND = 6.0;
+    const float BAND = 7.0;
     float lr = raise * w;
     // 全闭时多盖 2px，把下缘那一丝眼白也压住
-    float drop = min(close * (h + 2.0 * w), max(h + 2.0 * w - lr, 0.0));
+    float drop = min(close * (h + 3.0 * w), max(h + 3.0 * w - lr, 0.0));
     float lidY = top + drop;
     vec2 s = p;
+    // ① 睫毛带：刚性下移，不拉伸
+    // ② 其上闭合区：只从"干净眼皮条带" [top-skin, top-BAND] 采样铺满，
+    //    绝不把睫毛拉长；再用眼皮固有色 + 横向模糊盖掉残余
     if (close > 0.001 && p.y > top - skin && p.y < lidY - BAND) {
-      float t = (p.y - (top - skin)) / (skin - BAND + drop);
-      s.y = top - skin + t * (skin - BAND);
-      float stretch = drop / max(skin - BAND, 1.0);
-      float k = smoothstep(0.0, 0.6, stretch) * smoothstep(0.0, 0.6, t) * smoothstep(0.0, 0.55, w);
-      blurAmt = max(blurAmt, smoothstep(0.0, 0.6, stretch) * smoothstep(0.0, 0.3, t));
-      // 从原图取样标定的眼皮肤色（两端各一个），沿眼裂横向插值
-      lid = vec4(mix(cA, cB, clamp(u * 0.5 + 0.5, 0.0, 1.0)) * (1.0 - 0.06 * t), k * 0.8);
-      shade = max(shade, t * close * sqrt(w));
+      float destH = max(skin - BAND + drop, 0.001);
+      float t = (p.y - (top - skin)) / destH;
+      float srcH = max(skin - BAND, 1.0);
+      // 源条带上半部（更干净）权重大一点，减少睫毛根被拖进来
+      float srcT = mix(0.05, 0.92, t * t);
+      s.y = (top - skin) + srcT * srcH;
+      float stretch = drop / srcH;
+      float k = smoothstep(0.15, 0.85, stretch) * smoothstep(0.05, 0.7, t) * smoothstep(0.0, 0.45, w);
+      blurAmt = max(blurAmt, smoothstep(0.1, 0.9, stretch) * 0.85);
+      lid = vec4(mix(cA, cB, clamp(u * 0.5 + 0.5, 0.0, 1.0)) * (1.0 - 0.04 * t), k * mix(0.55, 0.95, close));
+      shade = max(shade, t * close * sqrt(w) * 0.7);
     } else if (close > 0.001 && p.y >= lidY - BAND && p.y < lidY) {
       s.y = p.y - drop;
       shade = max(shade, close * sqrt(w));
@@ -204,10 +210,10 @@ const FRAGMENT = /* glsl */ `
     float w = clamp(1.0 - u * u, 0.0, 1.0);
     // 开口两头收尖：中间最大，嘴角几乎不动
     float g = uMouthOpen * pow(w, 1.7);
-    float up = g * 0.25;
+    float up = g * 0.45;
     float seam = quadAt(uMouthQ, p.x);
-    const float RD = 62.0;   // 下唇 + 下巴参与形变的高度
-    const float RU = 34.0;   // 上唇参与形变的高度
+    const float RD = 70.0;   // 下唇 + 下巴参与形变的高度
+    const float RU = 40.0;   // 上唇参与形变的高度
     vec2 s = p;
     if (p.y > seam - RU && p.y < seam - up) {
       float t = (p.y - (seam - RU)) / (RU - up);
@@ -333,8 +339,8 @@ const FRAGMENT = /* glsl */ `
         vec2 r = vec2(8.0 / 1280.0, 0.0);
         // 被拉长的睫毛是竖条纹 → 主要靠横向模糊抹掉
         vec4 bh = vec4(0.0);
-        for (int i = -4; i <= 4; i++) bh += texture2D(uMap, texUv + vec2(float(i) * 3.5 / 1280.0, 0.0));
-        bh /= 9.0;
+        for (int i = -5; i <= 5; i++) bh += texture2D(uMap, texUv + vec2(float(i) * 4.0 / 1280.0, 0.0));
+        bh /= 11.0;
         vec4 bl = mix(blur9(texUv, r.x), bh, 0.6);
         color = mix(color, bl, blurAmt);
       }
@@ -346,7 +352,7 @@ const FRAGMENT = /* glsl */ `
       color.rgb *= 1.0 - 0.07 * lidShade;
       color.rgb *= 1.0 - 0.22 * lipShade;
       color.rgb = mix(color.rgb, inner.rgb, inner.a);
-      color.rgb = mix(color.rgb, color.rgb * vec3(1.02, 0.84, 0.86), clamp(blush, 0.0, 1.0) * 0.55);
+      color.rgb = mix(color.rgb, color.rgb * vec3(1.02, 0.84, 0.86), clamp(blush, 0.0, 1.0) * 0.72);
     }
 
     gl_FragColor = vec4(color.rgb, color.a * uOpacity);

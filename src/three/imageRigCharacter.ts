@@ -454,7 +454,7 @@ export class ImageRigCharacter implements CharacterRig {
         const isFace = layer === this.faceLayer
         const h = 2 * Math.abs(layer.depth) * tan * push * (isFace ? this.expr.breath : 1)
         layer.mesh.scale.set(h * this.camera.aspect, h, 1)
-        layer.mesh.position.set(parX, parY + (isFace ? this.expr.breathY * h : 0), layer.depth)
+        layer.mesh.position.set(parX + (isFace ? this.expr.swayX * h : 0), parY + (isFace ? this.expr.breathY * h : 0), layer.depth)
       }
     }
   }
