@@ -1266,3 +1266,14 @@ h1.hero__claim {
   line-height: 1.15;
   word-break: keep-all;
 }
+
+
+/* cap-card readable overlay — 防止标题/正文透到角色背景 */
+.s-cap .cap-card__title,
+.s-cap .cap-card__text,
+.s-cap .cap-card__index {
+  text-shadow: none;
+}
+.s-cap.is-workbench .wb-meta + .s-cap__viewport .cap-card {
+  background: #12141c;
+}
