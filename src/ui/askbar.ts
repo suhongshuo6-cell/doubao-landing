@@ -284,6 +284,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
       wrap?.classList.remove('is-sending')
     }, 420)
     hooks.onSend(text, rect.left + rect.width / 2, rect.top)
+      document.dispatchEvent(new CustomEvent('doubao:ask-send', { detail: { text: text, x: rect.left + rect.width / 2, y: rect.top } }))
     document.dispatchEvent(new CustomEvent('doubao:asked', { detail: { text } }))
     appendBubble('你', text, 'user')
     input.value = ''
