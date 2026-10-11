@@ -48,7 +48,7 @@
 
     <main id="main">
       <!-- ══ 1 / Hero：可分支对话 + 磨砂底板 ══ -->
-      <section class="s-hero" id="hero" data-anchor="0.00" data-zone="product">
+      <section class="s-hero" id="hero" data-anchor="0.00" data-zone="product" data-chapter="hear">
         <div class="s-hero__wash" aria-hidden="true"></div>
         <div class="s-hero__brand">
           <span class="hero__mark">豆包</span>
@@ -100,7 +100,7 @@
           <div class="hero__ask" id="heroAsk" data-no-pinch>
             <div class="askbar" id="askbar" role="search">
               <button type="button" class="askbar__avatar" id="askAvatar" aria-label="豆包头像" data-magnetic>
-                <img src="./img/doubao-official-chibi.png" alt="" width="36" height="36" />
+                <img src="/img/doubao-official-chibi.png" alt="" width="36" height="36" />
               </button>
               <button type="button" class="askbar__attach" id="askAttach" aria-label="添加附件" title="添加附件">📎</button>
               <input
@@ -121,11 +121,13 @@
             <div class="askbar__thread" id="askThread" aria-live="polite"></div>
             <div class="ask-followups" id="askFollowups" hidden></div>
             <p class="askbar__reply" id="askReply" aria-live="polite"></p>
+            <p class="connect-status" id="connectStatus" hidden>正在连接豆包…</p>
+            <div class="ask-context" id="askContext" hidden></div>
             <ul class="hero__hints" id="askHints">
-              <li><button type="button" class="hero__hint" data-ask-seed="帮我把这周的周报写了">帮我写周报</button></li>
-              <li><button type="button" class="hero__hint" data-ask-seed="这段话翻译成英文">翻译这段话</button></li>
-              <li><button type="button" class="hero__hint" data-ask-seed="陪我练十分钟口语">练口语</button></li>
-              <li><button type="button" class="hero__hint" data-ask-seed="我该给这个功能起什么名">起个功能名</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="帮我把这周的周报写了" data-magnetic>帮我写周报</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="看看这张图里有什么" data-magnetic>看看这张图</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="帮我安排一下今天" data-magnetic>安排今天</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="给我一个创意点子" data-magnetic>来个创意</button></li>
             </ul>
           </div>
         </div>
@@ -140,7 +142,7 @@
       </section>
 
       <!-- ══ 2 / 定位（浅色清晰卡片） ══ -->
-      <section class="s-pos" id="positioning" data-anchor="0.16" data-zone="product">
+      <section class="s-pos" id="positioning" data-anchor="0.16" data-zone="product" data-chapter="understand" data-gate>
         <div class="s-pos__grid wrap">
           <div class="s-pos__copy panel panel--light" data-parallax data-parallax-speed="-0.05">
             <p class="eyebrow" data-reveal>定位</p>
@@ -240,11 +242,11 @@
       </section>
 
       <!-- ══ 3 / 四大能力沙盒（终端风） ══ -->
-      <section class="s-cap" id="capabilities" data-anchor="0.32" data-zone="product">
+      <section class="s-cap" id="capabilities" data-anchor="0.32" data-zone="product" data-chapter="create" data-gate>
         <div class="s-cap__head wrap">
           <div class="panel">
             <p class="eyebrow" data-reveal>能力</p>
-            <h2 class="s-cap__title" data-reveal-lines>四件事，亲手试一下。</h2>
+            <h2 class="s-cap__title" data-reveal-lines data-chapter-enter="soft">四件事，亲手试一下。</h2>
           </div>
         </div>
 
@@ -355,7 +357,7 @@
         <div class="s-scenes__head wrap">
           <div class="panel">
             <p class="eyebrow" data-reveal>场景</p>
-            <h2 class="s-scenes__title" data-reveal-lines>三个典型时刻 · 点气泡也能玩。</h2>
+            <h2 class="s-scenes__title" data-reveal-lines data-chapter-enter="clip">三个典型时刻 · 点气泡也能玩。</h2>
           </div>
         </div>
 
@@ -440,7 +442,7 @@
               <div class="alcove-pinch">
                 <div class="alcove-pinch__zone pinch-zone" data-cursor="pinch">
                   <div class="alcove-pinch__face" aria-hidden="true">
-                    <img src="./img/doubao-official-chibi.png" alt="" width="120" height="120" />
+                    <img src="/img/doubao-official-chibi.png" alt="" width="120" height="120" />
                   </div>
                   <p>按住脸蛋揉一揉</p>
                 </div>
@@ -606,7 +608,7 @@
       <section class="s-cta-stage" id="ctaStage" data-anchor="1.00" data-zone="craft" data-gate>
         <div class="cta-stage wrap">
           <p class="eyebrow">开始</p>
-          <h2 class="cta-stage__title">现在，说一句给她听。</h2>
+          <h2 class="cta-stage__title" data-chapter-enter="rise">现在，说一句给她听。</h2>
           <p class="cta-stage__lead">回到首屏对话框，或去 GitHub 看源码。本页为非官方致敬演示。</p>
           <div class="cta-stage__actions">
             <button type="button" class="cta-stage__btn" data-cursor="cta" data-magnetic>回到对话框</button>
