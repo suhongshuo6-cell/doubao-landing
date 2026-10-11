@@ -1,59 +1,74 @@
 /* ============================================================================
-   tokens.css — 全站唯一的色值 / 排版 / 形状 / 动效参数来源
-   任何地方都不允许出现字面量色值，一律走变量。
+   tokens.css — Gen2 换代色板 / 排版 / 形状 / 动效
+   仍浅色系，但层次更强：色块更大、磨砂底板、终端感能力卡
    ========================================================================== */
 
 :root {
-  /* ---- 色彩：明亮、克制、只有一点点暖色 ---------------------------------- */
-  --bg: #FBFBFD;
-  --bg-alt: #F4F5F7;
+  /* ---- 色彩：浅底 + 更强色块节奏 -------------------------------------- */
+  --bg: #F7F6F3;
+  --bg-alt: #EEEDE8;
   --surface: #FFFFFF;
-  --ink: #0E0E12;
-  --ink-2: #5B5F6B;
-  --ink-3: #8B8F99;
-  --hairline: rgba(14, 14, 18, 0.08);
+  --ink: #12131A;
+  --ink-2: #4A4E5C;
+  --ink-3: #8A8F9C;
+  --hairline: rgba(18, 19, 26, 0.1);
+  --line: rgba(18, 19, 26, 0.14);
 
-  /* 豆包识别色：全站出现面积 ≤ 3%。只允许用在
-     1) 唯一的主动作按钮  2) focus ring  3) 极少量的高亮下划线/进度点      */
-  --brand: #FF5A3C;
-  --brand-soft: #FFD9CF;
-  /* 极淡冷色，只用于背景 ≤5% 面积的微渐变，营造"AI 感"而不抢戏 */
-  --ai-wash: #EAF0FF;
+  --brand: #FF4D2E;
+  --brand-soft: #FFD4C8;
+  --brand-deep: #E03A1C;
+  --ai-wash: #DDE6FF;
+  --chat-ai: #E8EEFF;
+  --chat-user: #FFF6F2;
+  --success: #1A9B68;
+  --tech-node: #2F3F6E;
+  --terminal: #161822;
+  --terminal-line: #2A2E3F;
+  --accent-cool: #5B7CFF;
+  --accent-warm: #FF8A3D;
 
-  /* 派生：仅在需要"品牌色变淡"时使用，避免各处手写 rgba */
-  --brand-a25: rgba(255, 90, 60, 0.25);
-  --brand-a12: rgba(255, 90, 60, 0.12);
-  --ink-a60: rgba(14, 14, 18, 0.6);
-  --bg-a92: rgba(251, 251, 253, 0.92);
-  --bg-a00: rgba(251, 251, 253, 0);
+  --brand-a40: rgba(255, 77, 46, 0.4);
+  --brand-a25: rgba(255, 77, 46, 0.25);
+  --brand-a12: rgba(255, 77, 46, 0.12);
+  --ink-a60: rgba(18, 19, 26, 0.6);
+  --ink-a08: rgba(18, 19, 26, 0.08);
+  --bg-a96: rgba(247, 246, 243, 0.96);
+  --bg-a92: rgba(247, 246, 243, 0.92);
+  --bg-a88: rgba(247, 246, 243, 0.88);
+  --bg-a00: rgba(247, 246, 243, 0);
+  --frost: rgba(255, 255, 255, 0.78);
+  --frost-strong: rgba(255, 255, 255, 0.9);
+  --panel-edge: rgba(255, 255, 255, 0.55);
 
-  /* ---- 排版 -------------------------------------------------------------- */
-  /* 中文走系统字体：不加载中文 Web Font，体积得不偿失且系统字体本就好看 */
+  /* ---- 排版：更大 display，更强节奏 ------------------------------------ */
   --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  --fs-display: clamp(2.75rem, 6vw, 5.5rem);
-  --fs-h2: clamp(1.75rem, 3.4vw, 3rem);
-  --fs-h3: clamp(1.125rem, 1.6vw, 1.375rem);
-  --fs-body: 1.0625rem;      /* 17px */
-  --fs-sm: 0.9375rem;        /* 15px */
-  --fs-xs: 0.8125rem;        /* 13px */
-  --fs-micro: 0.6875rem;     /* 11px — 只用在不承担正文信息量的角标上 */
+  --fs-display: clamp(2.6rem, 6vw, 5rem);
+  --fs-h2: clamp(1.9rem, 3.8vw, 3.35rem);
+  --fs-h3: clamp(1.2rem, 1.7vw, 1.5rem);
+  --fs-body: 1.0625rem;
+  --fs-sm: 0.9375rem;
+  --fs-xs: 0.8125rem;
+  --fs-micro: 0.6875rem;
 
-  --lh-display: 0.98;
-  --lh-body: 1.75;
-  --ls-display: -0.03em;
-  --ls-tight: -0.015em;
-  --ls-wide: 0.36em;         /* 「豆包」二字的拉开字距 */
+  --lh-display: 1.02;
+  --lh-body: 1.72;
+  --ls-display: -0.025em;
+  --ls-tight: -0.012em;
+  --ls-wide: 0.28em;
 
-  /* ---- 形状与阴影 -------------------------------------------------------- */
-  --r-card: 24px;
+  /* ---- 形状与阴影 ------------------------------------------------------ */
+  --r-card: 28px;
+  --r-panel: 22px;
   --r-pill: 999px;
-  --r-sm: 12px;
-  --shadow-1: 0 1px 2px rgba(14, 14, 18, 0.04), 0 8px 24px rgba(14, 14, 18, 0.05);
-  --shadow-2: 0 2px 4px rgba(14, 14, 18, 0.03), 0 24px 64px rgba(14, 14, 18, 0.08);
+  --r-sm: 14px;
+  --shadow-1: 0 2px 8px rgba(18, 19, 26, 0.05), 0 12px 32px rgba(18, 19, 26, 0.06);
+  --shadow-2: 0 4px 16px rgba(18, 19, 26, 0.06), 0 32px 72px rgba(18, 19, 26, 0.1);
+  --shadow-brand: 0 12px 40px var(--brand-a25);
 
-  /* ---- 间距：8px baseline ------------------------------------------------ */
+  /* ---- 间距 ------------------------------------------------------------ */
   --sp-1: 8px;
   --sp-2: 16px;
   --sp-3: 24px;
@@ -63,20 +78,20 @@
   --sp-7: 96px;
   --sp-8: 140px;
 
-  --maxw: 1200px;
-  --col-text: 700px;         /* 文字栏宽 680–720px */
+  --maxw: 1240px;
+  --col-text: 640px;
   --gutter: clamp(20px, 4.2vw, 56px);
   --nav-h: 64px;
-  --rail-w: 132px;
+  --rail-w: 140px;
 
-  /* ---- 动效：缓动与时长 -------------------------------------------------- */
-  --ease-in: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --ease-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-s: 180ms;
-  --dur-m: 420ms;
-  --dur-l: 800ms;
+  /* ---- 动效：更快出手，更大行程 ---------------------------------------- */
+  --ease-in: cubic-bezier(0.16, 0.84, 0.28, 1);
+  --ease-out: cubic-bezier(0.55, 0, 0.25, 1);
+  --ease-spring: cubic-bezier(0.22, 1.35, 0.36, 1);
+  --dur-s: 160ms;
+  --dur-m: 380ms;
+  --dur-l: 720ms;
 
-  /* ---- 层级：背景 0 / 角色画布 1 / 内容 2 / 固定 UI 3 -------------------- */
   --z-bg: 0;
   --z-stage: 1;
   --z-content: 2;

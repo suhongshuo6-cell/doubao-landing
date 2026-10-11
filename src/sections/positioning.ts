@@ -1,17 +1,12 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from '../motion/lenisSetup'
 import { motionPrefs } from '../lib/motionPrefs'
-import { EASE_IN } from '../motion/eases'
 
 /**
- * 2 / 定位区 —— 版式：不对称双栏
- *
- * 右栏刻意留白，让角色"半身入画"。文字栏 720px，视觉栏不参与基线对齐，
- * 制造一点张力；如果做成左右等高，就立刻变成 SaaS 的分栏模板。
- *
- * 这里只负责 dl 里三行事实的错峰浮现（段落本身由全局 reveal 处理）。
+ * 2 / 定位区 —— 浅色清晰卡片 + 事实行错峰浮现
  */
 export function initPositioning(): () => void {
+  const copy = document.querySelector<HTMLElement>('.s-pos__copy')
   const rows = document.querySelectorAll<HTMLElement>('.facts__row')
   if (!rows.length) return () => undefined
 
@@ -20,22 +15,59 @@ export function initPositioning(): () => void {
     return () => undefined
   }
 
-  const tween = gsap.fromTo(
-    rows,
-    { opacity: 0, y: 14 },
-    {
-      opacity: 1,
-      y: 0,
-      duration: 0.7,
-      ease: EASE_IN,
-      stagger: 0.07,
-      scrollTrigger: { trigger: '.facts', start: 'top 88%', once: true },
-    },
+  const tweens: gsap.core.Tween[] = []
+
+  if (copy) {
+    tweens.push(
+      gsap.fromTo(
+        copy,
+        { opacity: 0, y: 36, scale: 0.97 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.8,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: copy, start: 'top 88%', once: true },
+        },
+      ),
+    )
+  }
+
+  tweens.push(
+    gsap.fromTo(
+      rows,
+      { opacity: 0, y: 26, x: -12 },
+      {
+        opacity: 1,
+        y: 0,
+        x: 0,
+        duration: 0.78,
+        ease: 'back.out(1.55)',
+        stagger: 0.1,
+        scrollTrigger: { trigger: '.facts', start: 'top 88%', once: true },
+      },
+    ),
   )
 
+  rows.forEach((row) => {
+    const onEnter = (): void => {
+      row.classList.add('is-hot')
+      gsap.to(row, { x: 6, duration: 0.25, overwrite: 'auto' })
+    }
+    const onLeave = (): void => {
+      row.classList.remove('is-hot')
+      gsap.to(row, { x: 0, duration: 0.3, overwrite: 'auto' })
+    }
+    row.addEventListener('pointerenter', onEnter)
+    row.addEventListener('pointerleave', onLeave)
+  })
+
   return () => {
-    tween.scrollTrigger?.kill()
-    tween.kill()
+    for (const tween of tweens) {
+      tween.scrollTrigger?.kill()
+      tween.kill()
+    }
     ScrollTrigger.refresh()
   }
 }

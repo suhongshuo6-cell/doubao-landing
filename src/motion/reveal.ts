@@ -146,13 +146,13 @@ export function revealLines(el: HTMLElement, options: RevealOptions = {}): gsap.
 
   return gsap.fromTo(
     lines,
-    { yPercent: 110 },
+    { yPercent: 130 },
     {
       yPercent: 0,
-      duration: options.duration ?? 0.9,
+      duration: options.duration ?? 1.05,
       delay: options.delay ?? 0,
       ease: EASE_IN,
-      stagger: options.stagger ?? 0.06,
+      stagger: options.stagger ?? 0.09,
       scrollTrigger: { trigger: el, start: 'top 88%', once: true },
     },
   )
@@ -171,7 +171,7 @@ export function reveal(el: Element, options: RevealOptions = {}): gsap.core.Twee
       opacity: 1,
       y: 0,
       filter: 'blur(0px)',
-      duration: options.duration ?? 0.9,
+      duration: options.duration ?? 1.05,
       delay: options.delay ?? 0,
       ease: EASE_IN,
       scrollTrigger: { trigger: el, start: 'top 88%', once: true },

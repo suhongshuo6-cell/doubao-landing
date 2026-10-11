@@ -4,6 +4,18 @@ import { defineConfig } from 'vite'
 // 也可能挂自定义域名。base 用相对路径 './' 两种场景都能跑，无需改配置。
 export default defineConfig({
   base: './',
+  server: {
+    // 浏览器直连 ark.cn-beijing.volces.com 常遇 CORS。
+    // 本地 dev 把 /ark-api 代理到方舟，前端 doubaoClient 在 DEV 下走此路径。
+    proxy: {
+      '/ark-api': {
+        target: 'https://ark.cn-beijing.volces.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/ark-api/, ''),
+      },
+    },
+  },
   build: {
     target: 'es2020',
     assetsInlineLimit: 4096,
@@ -11,15 +23,6 @@ export default defineConfig({
     reportCompressedSize: true,
     rollupOptions: {
       output: {
-        // 分包策略（Vite 8 起 manualChunks 只接受函数形式）：
-        //  · three 核心 + 轻量 addons（如 RectAreaLightUniformsLib）：首屏就要，合成一个 chunk
-        //  · three 的 loaders（GLTFLoader / DRACOLoader / KTX2Loader / WorkerPool / zstddec）：
-        //    只有"用户往 public/models/ 放了 doubao.glb"时才会被动态 import 到。
-        //    必须单独成 chunk —— 否则这 140KB(gzip) 会跟着 modulepreload 一起进首屏。
-        //  · gsap + lenis：动效层，单独缓存
-        //
-        // 注意不能用 `three/examples/jsm` 一刀切：RectAreaLightUniformsLib 也在那个目录下，
-        // 一刀切会把 loaders 一起拖进首屏（实测 modulepreload 里会多出 141KB gzip）。
         manualChunks(id: string) {
           if (
             id.includes('node_modules/three/examples/jsm/loaders/') ||

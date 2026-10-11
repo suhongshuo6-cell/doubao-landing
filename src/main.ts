@@ -2,6 +2,9 @@
 // 拉丁与数字只需要 latin 子集，其余子集由 unicode-range 挡住，浏览器不会下载。
 import '@fontsource-variable/inter/wght.css'
 import './styles/global.css'
+import './styles/gen2.css'
+import './styles/spectacle.css'
+import './styles/gen3.css'
 
 import gsap from 'gsap'
 
@@ -17,6 +20,12 @@ import { initProgressRail } from './ui/progressRail'
 import { initContentSections, initStageSections } from './sections'
 import { createStage2d } from './fx/stage2d'
 import { initAskbar } from './ui/askbar'
+import { initSpectacle } from './motion/spectacle'
+import { initPolymorphCursor } from './motion/cursor'
+import { initScrambleReveal } from './motion/scramble'
+import { initVelocityMarquee } from './motion/marquee'
+import { initChapterGates } from './motion/gates'
+import { initEaster } from './fx/easter'
 import type { CharacterRig } from './three/character'
 
 /**
@@ -72,6 +81,46 @@ function boot(): void {
   initNav(scroll, loop)
   initReveal()
   initContentSections({ scroll, loop })
+  initSpectacle({ loop })
+  initPolymorphCursor(loop)
+  initScrambleReveal()
+  initVelocityMarquee(scroll, loop)
+
+  /* Gen2：滚动区带 data-zone → 角色层对比度；视差；转场光洗 */
+  const zoneSections = Array.from(document.querySelectorAll<HTMLElement>('[data-zone]'))
+  const parallaxEls = Array.from(document.querySelectorAll<HTMLElement>('[data-parallax]'))
+  const cutSection = document.getElementById('cutover')
+  let cutFired = false
+  const syncZone = (): void => {
+    let active = 'product'
+    const mid = window.innerHeight * 0.42
+    for (const el of zoneSections) {
+      const r = el.getBoundingClientRect()
+      if (r.top <= mid && r.bottom >= mid) {
+        active = el.dataset.zone || active
+        break
+      }
+    }
+    document.documentElement.dataset.zone = active
+    if (cutSection && !cutFired) {
+      const r = cutSection.getBoundingClientRect()
+      if (r.top < window.innerHeight * 0.7 && r.bottom > window.innerHeight * 0.25) {
+        cutFired = true
+        cutSection.classList.add('is-slash')
+      }
+    }
+    if (!motionPrefs.reduced) {
+      for (const el of parallaxEls) {
+        const speed = Number(el.dataset.parallaxSpeed || -0.06)
+        const rect = el.getBoundingClientRect()
+        const offset = (rect.top + rect.height * 0.5 - window.innerHeight * 0.5) * speed
+        el.style.setProperty('--py', offset.toFixed(2))
+      }
+    }
+  }
+  loop.add(() => syncZone())
+  syncZone()
+
 
   /* ═══════════ 2D 特效层：粒子 + 小豆包 + 鼠标柔光 ═══════════
      刻意放在阶段 1：它是"会回应你"的部分，不该等 244KB 的 three。
@@ -132,9 +181,28 @@ function boot(): void {
       onFirstGesture: () => fx.audio.unlock(),
       onType: () => fx.audio.note(2 + ((Math.random() * 3) | 0), { vol: 0.045 }),
       onSend: (_text, x, y) => fx.react('send', x, y),
+      onAvatarBounce: () => fx.mascot.bounce(1.1),
     })
 
-    // 页脚烟花
+    initChapterGates({
+      burst: (x, y) => {
+        fx.particles.burst(x, y, { n: 18, speedMin: 2, speedMax: 9, big: false })
+        fx.particles.ring(x, y, '#FF5A3C')
+      },
+    })
+
+    // 彩蛋：连点头像 / 捏脸通关 / 烟花加重
+    initEaster({
+      mascot: fx.mascot,
+      particles: fx.particles,
+      audio: fx.audio,
+      getPinchProgress: () => {
+        const on = document.querySelectorAll('.interaction-hud__meter i.is-on').length
+        return on / 5
+      },
+    })
+
+    // 页脚烟花（easter 会再加重一波）
     document.getElementById('fireBtn')?.addEventListener('click', () => {
       fx.audio.unlock()
       fx.react('cheer')
@@ -246,7 +314,45 @@ function boot(): void {
     const rootEl = document.documentElement
 
     /** 只有脸在画面里足够大时才允许捏（规格：面部特写段） */
-    const PINCH_GATE = 0.32
+    const PINCH_GATE = 0.38
+    let pinchHoldMs = 0
+    let pinchSuccessCount = 0
+    let pinchRewardDone = false
+
+    const firePinchReward = (x: number, y: number): void => {
+      if (pinchRewardDone) return
+      pinchRewardDone = true
+      pinchSuccessCount += 1
+      say('手感刚好。再捏一下？')
+      fx?.mascot.bounce(1.35)
+      fx?.react('cheer', x, y)
+      fx?.particles.burst(x, y, {
+        n: 42,
+        speedMin: 3,
+        speedMax: 14,
+        big: true,
+        gravity: 0.06,
+        colors: ['#FF5A3C', '#FFB020', '#7EB6FF', '#F9A8D4', '#FDE68A'],
+      })
+      rootEl.classList.add('pinch-reward-shake', 'pinch-egg')
+      window.setTimeout(() => rootEl.classList.remove('pinch-reward-shake'), 600)
+      window.setTimeout(() => rootEl.classList.remove('pinch-egg'), 2600)
+      const hint = document.getElementById('heroPinchHint')
+      const reward = document.getElementById('heroReward')
+      const rewardText = document.getElementById('heroRewardText')
+      if (hint) hint.hidden = true
+      if (reward) reward.hidden = false
+      if (rewardText) {
+        rewardText.textContent = '她轻声说：手感刚好。官方 Q 版跳了一下 · 已解锁 Alcoves 提示'
+      }
+      document.dispatchEvent(new CustomEvent('doubao:pinch-reward', { detail: { source: 'hero' } }))
+      // HUD 记一格
+      const meters = hud?.querySelectorAll<HTMLElement>('.interaction-hud__meter i')
+      meters?.forEach((el, i) => el.classList.toggle('is-on', i < Math.min(5, pinchSuccessCount + 2)))
+      if (hudStatus) hudStatus.textContent = 'QUEST · 捏脸奖励'
+      if (hudLine) hudLine.textContent = '首屏捏脸通关 · 往下进 Alcoves 三关'
+    }
+
     let pointerInside = false
     let pressing = false
     let hoveringFace = false
@@ -267,14 +373,24 @@ function boot(): void {
 
     const updateHud = (node: number): void => {
       const part = Math.min(5, Math.max(1, node + 1))
-      const labels = ['FACE', 'NECK', 'SHAPE', 'WAIST', 'FEET']
-      const lines = ['移动视线，找到她的回应', '镜头继续下潜', '姿态已锁定', '腰线解锁，别太认真', '全部解锁']
+      const labels = ['QUEST · 开场捏脸', 'QUEST · 定位', 'QUEST · 能力', 'QUEST · Alcoves', 'QUEST · 收束']
+      const lines = [
+        '首屏捏一下脸，拿奖励',
+        '产品定位 · 继续下滚',
+        '能力横滑 · 终端卡可玩',
+        '三扇门 Flip 进出',
+        '时间轴 / 宇宙 / CTA',
+      ]
+      rootEl.classList.add('interaction-live')
       hud?.classList.add('interaction-live')
-      if (hudStatus) hudStatus.textContent = labels[part - 1] ?? 'FACE'
+      if (hudStatus) hudStatus.textContent = labels[part - 1] ?? '四处看看'
       if (hudCount) hudCount.textContent = `${String(part).padStart(2, '0')} / 05`
-      if (hudLine) hudLine.textContent = lines[part - 1] ?? lines[0]
+      if (hudLine) hudLine.textContent = lines[part - 1] ?? lines[0]!
       hud?.querySelectorAll<HTMLElement>('.interaction-hud__meter i').forEach((el, i) => el.classList.toggle('is-on', i < part))
     }
+
+    /** 捏脸倍率（产品亮点幕不再暴露材质滑杆） */
+    const pinchBoost = 1
 
     const cancelPress = (): void => {
       window.clearTimeout(longPressTimer)
@@ -395,8 +511,16 @@ function boot(): void {
 
       if (pressing && !lastPressing) {
         blip(360)
+        pinchHoldMs = 0
         if (hoveringFace) fx?.react('pinch', ringX.value, ringY.value)
       }
+      if (pressing && hoveringFace) {
+        pinchHoldMs += dt * 1000
+      }
+      if (!pressing && lastPressing && hoveringFace && pinchHoldMs > 280) {
+        firePinchReward(ringX.value, ringY.value)
+      }
+      if (!pressing) pinchHoldMs = 0
       lastPressing = pressing
       if (canvas) {
         const breathe = Math.sin(performance.now() * 0.00135) * 0.7
@@ -417,12 +541,15 @@ function boot(): void {
 
       if (character) {
         if (hoveringFace) {
-          // 悬停强度是按下的四分之一（规格 6.5）
-          character.pinch(hitPoint, pressing ? 1 : 0.25)
+          const base = pressing ? 1 : 0.28
+          character.pinch(hitPoint, Math.min(2.2, base * pinchBoost))
         } else {
           character.pinch(null, 0)
         }
       }
+
+      // 全身段：强调捏脸光环与 HUD
+      rootEl.classList.toggle('fullbody-live', rig.framing < PINCH_GATE || rig.framing >= 0.62 || document.documentElement.classList.contains('alcove-open'))
 
       if (ring) {
         const x = ringX.update(dt)

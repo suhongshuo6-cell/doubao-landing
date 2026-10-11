@@ -4,26 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light only" />
-    <meta name="theme-color" content="#FBFBFD" />
+    <meta name="theme-color" content="#F7F6F3" />
     <title>豆包 · 把想法，说给豆包听 — 非官方致敬</title>
     <meta
       name="description"
-      content="一个非官方的豆包致敬单页：Three.js 实时舞台、电影化的取景运镜、可以在脸上捏出弹性形变。个人学习作品，与字节跳动无关。"
+      content="一个非官方的豆包致敬单页：首屏捏脸+对话双主线、三大 Alcoves 关卡、24h 时间轴与产品宇宙。个人学习作品，与字节跳动无关。"
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
     <a class="skip" href="#main">跳到主要内容</a>
 
-    <!-- 层级：背景 0 / 角色画布 1 / 内容 2 / 固定 UI 3 -->
     <div class="bg-wash" aria-hidden="true"></div>
     <canvas id="stage" class="stage" aria-hidden="true"></canvas>
-    <!-- 2D 特效层（粒子 + 小豆包）：与 #stage 同层、DOM 更靠后 →
-         盖在角色之上、正文之下。不依赖 three，首屏即可"回应你"。 -->
     <canvas id="fx" class="fx-layer" aria-hidden="true"></canvas>
     <div id="cursorGlow" class="cursor-glow" aria-hidden="true"></div>
 
-    <!-- 顶部 1px hairline 导航：滚过一屏后从透明渐显 -->
     <header class="nav" id="nav">
       <div class="nav__inner">
         <a class="nav__brand" href="#hero" aria-label="回到顶部">
@@ -36,87 +32,120 @@
             <path class="nav__sound-slash" d="M3 13 13 3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
           </svg>
         </button>
-        <a class="nav__link" href="https://github.com/" target="_blank" rel="noopener noreferrer">
+        <a class="nav__link" href="https://github.com/suhongshuo6-cell/doubao-landing" target="_blank" rel="noopener noreferrer">
           <span>GitHub</span>
           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
-            <path
-              d="M4.5 11.5 11.5 4.5M6 4.5h5.5V10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
+            <path d="M4.5 11.5 11.5 4.5M6 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </a>
       </div>
     </header>
 
-    <!-- 右侧进度导航条：6 个取景节点，由 ui/progressRail.ts 按 cameraRig 的节点表生成 -->
     <nav class="rail" id="rail" aria-label="取景导航">
       <span class="rail__line" aria-hidden="true"><i class="rail__indicator" id="railIndicator"></i></span>
       <ol class="rail__list" id="railList"></ol>
     </nav>
 
     <main id="main">
-      <!-- ══ 1 / Hero ══ 版式：特写型（全出血 + 极大字号压在留白上） -->
-      <section class="s-hero" id="hero" data-anchor="0.00">
+      <!-- ══ 1 / Hero：可分支对话 + 磨砂底板 ══ -->
+      <section class="s-hero" id="hero" data-anchor="0.00" data-zone="product">
+        <div class="s-hero__wash" aria-hidden="true"></div>
         <div class="s-hero__brand">
           <span class="hero__mark">豆包</span>
           <span class="hero__note">非官方致敬 · 个人作品</span>
         </div>
 
-        <div class="s-hero__claim">
-          <h1 class="hero__claim" data-reveal-lines="0.1">把想法，说给豆包听。</h1>
-        </div>
+        <div class="s-hero__dock">
+          <div class="s-hero__body" data-parallax data-parallax-speed="-0.06">
+            <p class="hero__kicker">捏脸 · 对话 · 双主线</p>
+            <h1 class="hero__claim hero__claim--soft" data-reveal-lines>把想法，说给豆包听。</h1>
+            <p class="hero__pinch-hint" id="heroPinchHint">脸上按住轻轻捏一下 → 解锁奖励</p>
+            <div class="hero__reward" id="heroReward" hidden>
+              <span class="hero__reward-badge">已捏通关</span>
+              <p id="heroRewardText">她轻声说：手感刚好。官方 Q 版也跟着跳了一下。</p>
+            </div>
 
-        <div class="hero__ask">
-          <div class="askbar" id="askbar">
-            <span class="askbar__dot" aria-hidden="true"></span>
-            <input
-              class="askbar__input"
-              id="askInput"
-              type="text"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="随便打点什么，她会回应你……"
-              aria-label="随便打点什么，她会回应你"
-            />
-            <button class="askbar__send" id="askSend" type="button" aria-label="发送">↑</button>
+            <div class="hero-thread" id="heroThread" aria-live="polite">
+              <div class="hero-bubble hero-bubble--user" data-hero-msg hidden>
+                <span class="hero-bubble__who">你</span>
+                <p>豆包，帮我把这周的周报写完？</p>
+              </div>
+              <div class="hero-bubble hero-bubble--ai" data-hero-msg hidden>
+                <span class="hero-bubble__who">豆包</span>
+                <p>好。先给我三件这周最重要的事，我帮你压成结论。</p>
+              </div>
+              <div class="hero-bubble hero-bubble--user" data-hero-msg hidden>
+                <span class="hero-bubble__who">你</span>
+                <p>产品上线、客诉下降、以及那次加班……</p>
+              </div>
+              <div class="hero-bubble hero-bubble--ai" data-hero-msg data-hero-branch-gate hidden>
+                <span class="hero-bubble__who">豆包</span>
+                <p>收到。接下来你想怎么走？点一条分支，我陪你。</p>
+              </div>
+            </div>
+
+            <div class="hero-branches" id="heroBranches" hidden>
+              <button type="button" class="hero-branch" data-branch="report">继续写周报</button>
+              <button type="button" class="hero-branch" data-branch="tour">换个生活场景</button>
+              <button type="button" class="hero-branch" data-branch="play">去玩 Alcoves 关卡</button>
+            </div>
+
+            <div class="hero-cta">
+              <button class="hero-cta__next" id="heroNext" type="button">下一条</button>
+              <a class="cta-primary" href="#capabilities">继续了解她</a>
+              <a class="cta-ghost" href="https://github.com/suhongshuo6-cell/doubao-landing" target="_blank" rel="noopener noreferrer">GitHub 源码</a>
+            </div>
           </div>
-          <p class="askbar__reply" id="askReply" aria-live="polite"></p>
 
-          <ul class="hero__hints">
-            <li>移动鼠标，她会看向你</li>
-            <li>按住她的脸，轻轻捏</li>
-            <li>左右拖动，转身</li>
-            <li>随便敲键盘</li>
-          </ul>
+          <div class="hero__ask" id="heroAsk" data-no-pinch>
+            <div class="askbar" id="askbar" role="search">
+              <button type="button" class="askbar__avatar" id="askAvatar" aria-label="豆包头像" data-magnetic>
+                <img src="/img/doubao-official-chibi.png" alt="" width="36" height="36" />
+              </button>
+              <button type="button" class="askbar__attach" id="askAttach" aria-label="添加附件" title="添加附件">📎</button>
+              <input
+                id="askInput"
+                class="askbar__input"
+                type="text"
+                maxlength="120"
+                placeholder="随便打点什么，豆包会回你"
+                autocomplete="off"
+                aria-label="和豆包说点什么"
+              />
+              <button type="button" class="askbar__voice" id="askVoice" aria-pressed="false" aria-label="按住说话">
+                <span id="askVoiceLabel">按住说话</span>
+              </button>
+              <button type="button" class="askbar__send" id="askSend" aria-label="发送" data-magnetic>↑</button>
+            </div>
+            <p class="askbar__attach-label" id="askAttachLabel" hidden></p>
+            <div class="askbar__thread" id="askThread" aria-live="polite"></div>
+            <div class="ask-followups" id="askFollowups" hidden></div>
+            <p class="askbar__reply" id="askReply" aria-live="polite"></p>
+            <ul class="hero__hints" id="askHints">
+              <li><button type="button" class="hero__hint" data-ask-seed="帮我把这周的周报写了">帮我写周报</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="这段话翻译成英文">翻译这段话</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="陪我练十分钟口语">练口语</button></li>
+              <li><button type="button" class="hero__hint" data-ask-seed="我该给这个功能起什么名">起个功能名</button></li>
+            </ul>
+          </div>
         </div>
 
         <div class="s-hero__scroll" id="scrollHint" aria-hidden="true">
           <span class="hero__scroll-line"></span>
           <svg class="hero__scroll-arrow" viewBox="0 0 12 16" width="12" height="16" focusable="false">
-            <path
-              d="M6 1v13M1.5 9.5 6 14l4.5-4.5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
+            <path d="M6 1v13M1.5 9.5 6 14l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
           <span class="hero__scroll-label">向下滚动</span>
         </div>
       </section>
 
-      <!-- ══ 2 / 定位 ══ 版式：不对称双栏（文字栏窄 700px + 右侧留白给角色半身入画） -->
-      <section class="s-pos" id="positioning" data-anchor="0.18">
+      <!-- ══ 2 / 定位（浅色清晰卡片） ══ -->
+      <section class="s-pos" id="positioning" data-anchor="0.16" data-zone="product">
         <div class="s-pos__grid wrap">
-          <div class="s-pos__copy">
+          <div class="s-pos__copy panel panel--light" data-parallax data-parallax-speed="-0.05">
             <p class="eyebrow" data-reveal>定位</p>
             <p class="lede" data-reveal-lines>
-              豆包是字节跳动推出的 AI 助手，把对话、写作、阅读、创作与搜索收进同一个入口。你不必先学会怎么提问，像跟人说话那样开口就好。
+              豆包是字节跳动推出的 AI 助手。对话、写作、阅读、创作与搜索，收进同一个入口——像跟人说话那样开口就好。
             </p>
             <dl class="facts" data-reveal data-reveal-delay="0.1">
               <div class="facts__row">
@@ -137,78 +166,197 @@
         </div>
       </section>
 
-      <!-- ══ 3 / 四大能力 ══ 版式：横向滚动型（pin 一屏，卡片横向推移） -->
-      <section class="s-cap" id="capabilities" data-anchor="0.36">
+      <!-- ══ 2b / 对照 + 模板墙 + 产品数字 ══ -->
+      <section class="s-compare" id="compare" data-zone="product">
+        <div class="wrap">
+          <div class="panel panel--light" data-spectacle>
+            <p class="eyebrow">为什么不是普通搜索</p>
+            <h2 class="s-compare__title" data-reveal-lines>同一句话，两种结果。</h2>
+            <div class="cmp-row" data-stagger>
+              <div class="cmp-col cmp-col--old">
+                <span class="cmp-col__tag">普通聊天 / 搜索</span>
+                <ul>
+                  <li>每次从零开始复述背景</li>
+                  <li>链接一堆，自己筛</li>
+                  <li>改语气要换工具</li>
+                </ul>
+              </div>
+              <div class="cmp-col cmp-col--new">
+                <span class="cmp-col__tag">豆包</span>
+                <ul>
+                  <li>记住上周聊过的项目</li>
+                  <li>给结论，并标来源</li>
+                  <li>同一段对话里改完</li>
+                </ul>
+              </div>
+            </div>
+            <div class="product-stats" data-stagger>
+              <div class="product-stat">
+                <b data-count="1" data-count-suffix=" 个入口">0</b>
+                <span>开口就能用</span>
+              </div>
+              <div class="product-stat">
+                <b data-count="5" data-count-suffix=" 类能力">0</b>
+                <span>对话·写作·阅读·创作·搜索</span>
+              </div>
+              <div class="product-stat">
+                <b data-count="24" data-count-suffix="h">0</b>
+                <span>随时接着聊</span>
+              </div>
+            </div>
+            <p class="product-stats__note">示意数字 · 非官方口径</p>
+          </div>
+
+          <div class="tpl-wall-wrap" data-spectacle data-spectacle-y="48">
+            <p class="eyebrow">一句话模板墙</p>
+            <p class="tpl-wall__lead">点一下，灌进上方对话框。</p>
+            <div class="tpl-wall" id="templateWall" data-stagger>
+              <button type="button" class="tpl-chip" data-tpl="帮我把这段话改成更客气的版本">改成更客气</button>
+              <button type="button" class="tpl-chip" data-tpl="用三句话总结今天的会议">三句话总结会议</button>
+              <button type="button" class="tpl-chip" data-tpl="给这个功能起 8 个候选名">起 8 个功能名</button>
+              <button type="button" class="tpl-chip" data-tpl="把周报压到 200 字，保留风险">周报压到 200 字</button>
+              <button type="button" class="tpl-chip" data-tpl="画一张「用户旅程」文字草图">用户旅程草图</button>
+              <button type="button" class="tpl-chip" data-tpl="陪我练 5 分钟英语口语开场">练口语开场</button>
+              <button type="button" class="tpl-chip" data-tpl="比较这两个方案的取舍">比较方案取舍</button>
+              <button type="button" class="tpl-chip" data-tpl="把待办按紧急/重要排一下">待办四象限</button>
+            </div>
+          </div>
+
+          <div class="review-row" data-stagger>
+            <article class="review-card">
+              <p>「终于不用把上下文复制来复制去了。」</p>
+              <span>— 示意评价 · 产品经理</span>
+            </article>
+            <article class="review-card">
+              <p>「按住说话查天气，双手腾出来切菜。」</p>
+              <span>— 示意评价 · 通勤族</span>
+            </article>
+            <article class="review-card">
+              <p>「改语气、砍长度，都在同一段对话里。」</p>
+              <span>— 示意评价 · 写作者</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ 3 / 四大能力沙盒（终端风） ══ -->
+      <section class="s-cap" id="capabilities" data-anchor="0.32" data-zone="product">
         <div class="s-cap__head wrap">
-          <p class="eyebrow" data-reveal>能力</p>
-          <h2 class="s-cap__title" data-reveal-lines>四件事，她做起来都像说话一样顺。</h2>
+          <div class="panel">
+            <p class="eyebrow" data-reveal>能力</p>
+            <h2 class="s-cap__title" data-reveal-lines>四件事，亲手试一下。</h2>
+          </div>
         </div>
 
         <div class="s-cap__viewport" id="capViewport">
           <div class="s-cap__track" id="capTrack">
             <article class="cap-card" data-cap="dialog" data-vel-tilt>
-              <div class="cap-card__top">
-                <span class="cap-card__index">01</span>
-                <h3 class="cap-card__title">多轮对话与复杂推理</h3>
-              </div>
-              <p class="cap-card__text">接着说下去就好。上下文会留住，追问、改口、加条件都不必从头再来。</p>
-              <div class="cap-demo" data-demo="dialog" aria-hidden="true">
-                <div class="demo-line">
-                  <span class="demo-typed" data-typewriter>帮我拆一下这个季度的增长目标</span><span class="demo-caret"></span>
+              <div class="cap-card__chrome"><span class="cap-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>sandbox://dialog</div>
+              <div class="cap-card__body">
+                <div class="cap-card__top">
+                  <span class="cap-card__index">01</span>
+                  <h3 class="cap-card__title">多轮对话与复杂推理</h3>
                 </div>
-                <div class="demo-thinking"><i></i><i></i><i></i><span class="demo-thinking__label">正在思考</span></div>
+                <p class="cap-card__text">接着说下去就好。上下文会留住，追问、改口、加条件都不必从头再来。</p>
+                <div class="cap-demo" data-demo="dialog">
+                  <div class="demo-chat" data-dialog-chat>
+                    <div class="demo-line">
+                      <span class="demo-typed" data-typewriter>帮我拆一下这个季度的增长目标</span><span class="demo-caret"></span>
+                    </div>
+                    <div class="demo-thinking"><i></i><i></i><i></i><span class="demo-thinking__label">正在思考</span></div>
+                  </div>
+                  <div class="demo-chips" data-dialog-chips>
+                    <button type="button" class="demo-chip" data-chip="再细一点，按渠道拆">再细一点</button>
+                    <button type="button" class="demo-chip" data-chip="加一个风险假设">加风险假设</button>
+                    <button type="button" class="demo-chip" data-chip="换成老板能看的版本">老板版</button>
+                  </div>
+                </div>
+                <div class="cap-ops">
+                  <button type="button" class="cap-op" data-dialog-op="reset">重开对话</button>
+                  <button type="button" class="cap-op" data-dialog-op="copy">复制结论</button>
+                </div>
               </div>
             </article>
 
             <article class="cap-card" data-cap="file" data-vel-tilt>
-              <div class="cap-card__top">
-                <span class="cap-card__index">02</span>
-                <h3 class="cap-card__title">文件与多模态理解</h3>
-              </div>
-              <p class="cap-card__text">PDF、表格、图片直接丢进来。她读完再回答，而不是让你先复述一遍。</p>
-              <div class="cap-demo" data-demo="file" aria-hidden="true">
-                <div class="demo-sheet" data-sheet>
-                  <span class="demo-sheet__fold"></span>
-                  <span class="demo-sheet__lines"></span>
-                  <span class="demo-sheet__name">季度复盘.pdf</span>
+              <div class="cap-card__chrome"><span class="cap-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>sandbox://file</div>
+              <div class="cap-card__body">
+                <div class="cap-card__top">
+                  <span class="cap-card__index">02</span>
+                  <h3 class="cap-card__title">文件与多模态理解</h3>
                 </div>
-                <div class="demo-progress"><i class="demo-progress__bar" data-progress></i></div>
-                <span class="demo-progress__label" data-progress-label>待解析</span>
+                <p class="cap-card__text">PDF、表格、图片直接丢进来。她读完再回答，而不是让你先复述一遍。</p>
+                <div class="cap-demo" data-demo="file" data-file-drop tabindex="0" role="button" aria-label="点击或拖入文件以演示解析">
+                  <div class="demo-sheet" data-sheet>
+                    <span class="demo-sheet__fold"></span>
+                    <span class="demo-sheet__lines"></span>
+                    <span class="demo-sheet__name" data-sheet-name>季度复盘.pdf</span>
+                  </div>
+                  <div class="demo-progress"><i class="demo-progress__bar" data-progress></i></div>
+                  <span class="demo-progress__label" data-progress-label>点击或拖入解析</span>
+                </div>
+                <div class="cap-ops">
+                  <button type="button" class="cap-op" data-file-op="pdf">换 PDF</button>
+                  <button type="button" class="cap-op" data-file-op="xlsx">换表格</button>
+                  <button type="button" class="cap-op" data-file-op="summary">导出摘要</button>
+                </div>
               </div>
             </article>
 
             <article class="cap-card" data-cap="image" data-vel-tilt>
-              <div class="cap-card__top">
-                <span class="cap-card__index">03</span>
-                <h3 class="cap-card__title">图像生成与编辑</h3>
-              </div>
-              <p class="cap-card__text">一句话改一张图：换背景、补光线、扩画幅，改到满意为止。</p>
-              <div class="cap-demo" data-demo="image" aria-hidden="true">
-                <div class="demo-pixels" data-pixels></div>
-                <span class="demo-pixels__label" data-pixels-label>等待生成</span>
+              <div class="cap-card__chrome"><span class="cap-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>sandbox://image</div>
+              <div class="cap-card__body">
+                <div class="cap-card__top">
+                  <span class="cap-card__index">03</span>
+                  <h3 class="cap-card__title">图像生成与编辑</h3>
+                </div>
+                <p class="cap-card__text">一句话改一张图：换背景、补光线、扩画幅，改到满意为止。</p>
+                <div class="cap-demo" data-demo="image">
+                  <div class="demo-pixels" data-pixels></div>
+                  <div class="demo-image-actions">
+                    <button type="button" class="demo-chip" data-image-action="bg">换背景</button>
+                    <button type="button" class="demo-chip" data-image-action="paint">涂抹重组</button>
+                    <button type="button" class="demo-chip" data-image-action="expand">扩画幅</button>
+                  </div>
+                  <span class="demo-pixels__label" data-pixels-label>点一下试试</span>
+                </div>
+                <div class="cap-ops">
+                  <button type="button" class="cap-op" data-image-op="compare">对比前后</button>
+                </div>
               </div>
             </article>
 
             <article class="cap-card" data-cap="voice" data-vel-tilt>
-              <div class="cap-card__top">
-                <span class="cap-card__index">04</span>
-                <h3 class="cap-card__title">实时语音与联网搜索</h3>
-              </div>
-              <p class="cap-card__text">开口就能聊。需要最新信息时，她自己去看一眼再回来告诉你。</p>
-              <div class="cap-demo" data-demo="voice" aria-hidden="true">
-                <div class="demo-wave" data-wave></div>
-                <span class="demo-wave__label">等待语音输入</span>
+              <div class="cap-card__chrome"><span class="cap-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>sandbox://voice</div>
+              <div class="cap-card__body">
+                <div class="cap-card__top">
+                  <span class="cap-card__index">04</span>
+                  <h3 class="cap-card__title">实时语音与联网搜索</h3>
+                </div>
+                <p class="cap-card__text">开口就能聊。需要最新信息时，她自己去看一眼再回来告诉你。</p>
+                <div class="cap-demo" data-demo="voice">
+                  <div class="demo-wave" data-wave></div>
+                  <button type="button" class="demo-hold" data-hold-speak aria-pressed="false">按住说话</button>
+                  <span class="demo-wave__label" data-voice-label>按住说话键</span>
+                  <div class="demo-voice-result" data-voice-result hidden>已听到：帮我查一下今天杭州天气。</div>
+                </div>
+                <div class="cap-ops">
+                  <button type="button" class="cap-op" data-voice-op="search">联网搜索</button>
+                  <button type="button" class="cap-op" data-voice-op="tempo">语速 ×1.4</button>
+                </div>
               </div>
             </article>
           </div>
         </div>
       </section>
 
-      <!-- ══ 4 / 场景 ══ 版式：通栏叙事型（三段横带 + hairline 分隔，左右不对齐） -->
-      <section class="s-scenes" id="scenes" data-anchor="0.54">
+      <!-- ══ 4 / 场景 ══ -->
+      <section class="s-scenes" id="scenes" data-anchor="0.48" data-zone="product">
         <div class="s-scenes__head wrap">
-          <p class="eyebrow" data-reveal>场景</p>
-          <h2 class="s-scenes__title" data-reveal-lines>一天里真正会用到她的三个时刻。</h2>
+          <div class="panel">
+            <p class="eyebrow" data-reveal>场景</p>
+            <h2 class="s-scenes__title" data-reveal-lines>三个典型时刻 · 点气泡也能玩。</h2>
+          </div>
         </div>
 
         <ol class="scenes">
@@ -220,7 +368,7 @@
             </div>
             <div class="scene__thread">
               <p class="bubble bubble--user">这道题为什么要先求导？</p>
-              <p class="bubble bubble--ai">因为它问的是"变化最快的那一点"。求导得到的是变化率，把变化率设为零，就找到了极值所在。</p>
+              <p class="bubble bubble--ai">因为它问的是「变化最快的那一点」。求导得到的是变化率，把变化率设为零，就找到了极值所在。</p>
               <p class="bubble bubble--user">那如果区间是闭的，端点还要不要算？</p>
               <p class="bubble bubble--ai">要算。闭区间上的极值可能落在端点，所以要比三类候选：驻点、不可导点、区间端点。</p>
             </div>
@@ -235,8 +383,8 @@
             <div class="scene__thread">
               <p class="bubble bubble--user">这份周报太长了，压到三百字。</p>
               <p class="bubble bubble--ai">已压到 286 字。保留三条结论和两个风险点，删掉了过程描述。</p>
-              <p class="bubble bubble--user">语气再客观一点，把"显著提升"换掉。</p>
-              <p class="bubble bubble--ai">改好了。现在写的是"环比提升 12%"，并补了一句口径说明。</p>
+              <p class="bubble bubble--user">语气再客观一点，把「显著提升」换掉。</p>
+              <p class="bubble bubble--ai">改好了。现在写的是「环比提升 12%」，并补了一句口径说明。</p>
             </div>
           </li>
 
@@ -256,179 +404,236 @@
         </ol>
       </section>
 
-      <!-- ══ 5 / 数字带 ══ 版式：通栏数据型（一排数据 + 横向分割线 + 极简文字） -->
-      <section class="s-num" id="numbers" data-anchor="0.68">
-        <div class="s-num__row">
-          <div class="num">
-            <span class="num__value" data-count="1">1</span>
-            <span class="num__unit">个</span>
-            <span class="num__key">对话入口</span>
+      <!-- ══ 5 / 章节门 → Alcoves 三关卡 ══ -->
+      <section class="s-alcoves" id="alcoves" data-anchor="0.66" data-zone="craft" data-gate>
+        <div class="wrap">
+          <div class="panel panel--light" data-spectacle>
+            <p class="eyebrow" data-reveal>Alcoves · 关卡</p>
+            <h2 class="s-alcoves__title">三扇门，翻进去玩。</h2>
+            <p class="s-alcoves__lead">不再空滚「互动舞台」。捏脸实验室 / 语音室 / 多模态桌 —— Flip 进出，玩完带走产品感觉。</p>
           </div>
-          <div class="num">
-            <span class="num__value" data-count="5">5</span>
-            <span class="num__unit">类</span>
-            <span class="num__key">日常任务</span>
+
+          <div class="alcove-doors" data-stagger>
+            <button type="button" class="alcove-door" data-alcove="pinch" data-cursor="pinch" data-magnetic>
+              <span class="alcove-door__no">01</span>
+              <b>捏脸实验室</b>
+              <p>力度 / 表情反馈条，捏到位有奖励</p>
+            </button>
+            <button type="button" class="alcove-door" data-alcove="voice" data-cursor="voice" data-magnetic>
+              <span class="alcove-door__no">02</span>
+              <b>语音室</b>
+              <p>按住说 → 字幕墙浮起来</p>
+            </button>
+            <button type="button" class="alcove-door" data-alcove="desk" data-cursor="drag" data-magnetic>
+              <span class="alcove-door__no">03</span>
+              <b>多模态桌</b>
+              <p>拖图 / 文件，立刻出结果</p>
+            </button>
           </div>
-          <div class="num">
-            <span class="num__value" data-count="2">2</span>
-            <span class="num__unit">种</span>
-            <span class="num__key">自然交互</span>
-          </div>
-          <div class="num">
-            <span class="num__value" data-count="0">0</span>
-            <span class="num__unit">次</span>
-            <span class="num__key">页面跳转</span>
+
+          <div class="alcove-rooms">
+            <article class="alcove-room" data-alcove="pinch" hidden>
+              <header class="alcove-room__head">
+                <h3>捏脸实验室</h3>
+                <button type="button" class="alcove-room__close" data-alcove-close aria-label="关闭">×</button>
+              </header>
+              <div class="alcove-pinch">
+                <div class="alcove-pinch__zone pinch-zone" data-cursor="pinch">
+                  <div class="alcove-pinch__face" aria-hidden="true">
+                    <img src="/img/doubao-official-chibi.png" alt="" width="120" height="120" />
+                  </div>
+                  <p>按住脸蛋揉一揉</p>
+                </div>
+                <div class="alcove-pinch__meters">
+                  <label>力度 <i><b data-meter-force></b></i></label>
+                  <label>表情 <i><b data-meter-expr></b></i></label>
+                  <p class="alcove-pinch__status" data-pinch-status>开始捏，看反馈条爬升</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="alcove-room" data-alcove="voice" hidden>
+              <header class="alcove-room__head">
+                <h3>语音室</h3>
+                <button type="button" class="alcove-room__close" data-alcove-close aria-label="关闭">×</button>
+              </header>
+              <div class="alcove-voice">
+                <button type="button" class="alcove-voice__hold" data-cursor="voice" aria-pressed="false">按住说话</button>
+                <ul class="alcove-voice__wall" aria-live="polite"></ul>
+              </div>
+            </article>
+
+            <article class="alcove-room" data-alcove="desk" hidden>
+              <header class="alcove-room__head">
+                <h3>多模态桌</h3>
+                <button type="button" class="alcove-room__close" data-alcove-close aria-label="关闭">×</button>
+              </header>
+              <div class="alcove-desk">
+                <div class="alcove-desk__drop" data-cursor="drag" tabindex="0" role="button" aria-label="拖入或点击演示文件">
+                  <p>拖图片 / PDF / 表格到这里</p>
+                  <span>或点一下用示例文件</span>
+                </div>
+                <div class="alcove-desk__chips">
+                  <button type="button" data-desk-file="季度复盘.pdf">PDF</button>
+                  <button type="button" data-desk-file="数据表.xlsx">表格</button>
+                  <button type="button" data-desk-file="截图.png">图片</button>
+                </div>
+                <p class="alcove-desk__result" hidden></p>
+              </div>
+            </article>
           </div>
         </div>
-        <p class="s-num__note">以上为体验示意，非官方口径数据。</p>
       </section>
 
-      <!-- ══ 6 / 全身取景 ══ 版式：大留白单侧克制型（scrub 绑相机，说明文字在右） -->
-      <section class="s-full" id="fullbody" data-anchor="0.92">
-        <div class="s-full__caption">
-          <p class="eyebrow">全身</p>
-          <p class="s-full__text">
-            黑色短上衣，红色围巾，黑色短裤，光脚。她站在浅色棚拍的墙面前，重心落在一条腿上。
-          </p>
-          <p class="s-full__hint">左右移动光标，可以绕到她侧面与背面。</p>
+      <!-- ══ 6 / 豆包一天 24h 可拖时间轴 ══ -->
+      <section class="s-day24" id="day24" data-anchor="0.78" data-zone="product" data-gate>
+        <div class="wrap">
+          <div class="panel panel--light">
+            <p class="eyebrow" data-reveal>一天</p>
+            <h2 class="s-day24__title">豆包的 24 小时，拖着看。</h2>
+          </div>
+          <div class="day24">
+            <div class="day24__rail">
+              <div class="day24__track" data-cursor="drag">
+                <i class="day24__thumb" id="day24Thumb"></i>
+              </div>
+              <div class="day24__ticks" role="tablist" aria-label="24 小时节点"></div>
+            </div>
+            <div class="day24__card">
+              <span class="day24__label" data-day24-label>12:00</span>
+              <h3 data-day24-title>午间周报</h3>
+              <p data-day24-text>同一段对话里改语气砍长度。</p>
+              <div class="day24__thread">
+                <p class="bubble bubble--user" data-day24-user></p>
+                <p class="bubble bubble--ai" data-day24-ai></p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- ══ 7 / 技术说明 ══ 版式：规格表型（左对齐 + 不等宽三栏 + 竖细线，刻意避开"居中标题 + 三卡片"） -->
-      <section class="s-tech" id="tech" data-anchor="1.00">
-        <div class="s-tech__head wrap">
-          <div>
-            <p class="eyebrow" data-reveal>实现</p>
-            <h2 class="s-tech__title" data-reveal-lines>这个页面是怎么做出来的。</h2>
+      <!-- ══ 7 / Vs 普通聊天分屏 clip ══ -->
+      <section class="s-vs" id="vsChat" data-zone="product" data-gate>
+        <div class="wrap">
+          <div class="panel panel--light">
+            <p class="eyebrow">对照</p>
+            <h2>同一句话，两种结果。</h2>
+            <p class="s-vs__lead">拖中间分隔条，看普通聊天 vs 豆包的分屏剪辑。</p>
           </div>
-          <button
-            class="s-tech__toggle"
-            type="button"
-            id="techToggle"
-            aria-expanded="true"
-            aria-controls="techBody"
-          >
-            <span data-toggle-label>收起</span>
-            <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
-              <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="s-tech__body" id="techBody">
-          <div class="s-tech__grid wrap">
-            <div class="tech-col">
-              <h3 class="tech-col__title">Three.js 舞台</h3>
-              <ul class="tech-list">
-                <li>ACES Filmic 色调映射，曝光 1.05</li>
-                <li>PMREMGenerator 从自建渐变场景烘焙环境贴图，不下载 HDR 文件</li>
-                <li>三点布光：大面积 RectAreaLight 主光、冷白补光、背后轮廓光</li>
-                <li>MeshPhysicalMaterial：roughness 0.5 / clearcoat 0.06 / sheen 0.35</li>
+          <div class="vs-clip" id="vsClip" data-cursor="drag">
+            <div class="vs-clip__left">
+              <span class="vs-clip__tag">普通聊天</span>
+              <ul>
+                <li>每次从零复述背景</li>
+                <li>链接一堆，自己筛</li>
+                <li>改语气要换工具</li>
+                <li>上下文一会儿就丢</li>
               </ul>
             </div>
-            <div class="tech-col">
-              <h3 class="tech-col__title">GSAP + Lenis 编排</h3>
-              <ul class="tech-list">
-                <li>Lenis 交给 gsap.ticker 单帧驱动，关掉 lagSmoothing 消除抖动</li>
-                <li>临界阻尼弹簧：相机、指针、卡片全部走弹簧，而不是 lerp</li>
-                <li>滚动速度映射成卡片 ±3° 旋转、标题字距、视觉层位移</li>
-                <li>手写逐行切分，不依赖 SplitText 插件</li>
+            <div class="vs-clip__right">
+              <span class="vs-clip__tag">豆包</span>
+              <ul>
+                <li>记住上周聊过的项目</li>
+                <li>给结论，并标思路</li>
+                <li>同一段对话里改完</li>
+                <li>开口就能接着聊</li>
               </ul>
             </div>
-            <div class="tech-col">
-              <h3 class="tech-col__title">自研 pinch shader</h3>
-              <ul class="tech-list">
-                <li>面部用代理球做 raycast，不对整个模型打射线</li>
-                <li>onBeforeCompile 注入顶点形变：沿法线压入 + 压点局部横向扩散</li>
-                <li>形变在压点局部空间做，避免绕原点缩放把脸甩出画面</li>
-                <li>NdotL 换成 wrap 形式，柔化明暗交界，接近次表面散射</li>
-              </ul>
+            <div class="vs-clip__handle" id="vsHandle" aria-hidden="true"><i></i></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ 8 / 能力宇宙关卡墙 ══ -->
+      <section class="s-universe" id="universe" data-anchor="0.90" data-zone="craft" data-gate>
+        <div class="wrap">
+          <div class="panel panel--light">
+            <p class="eyebrow" data-reveal>宇宙</p>
+            <h2>能力关卡墙。点亮一格。</h2>
+          </div>
+          <div class="universe-wall" id="universeWall" data-stagger></div>
+        </div>
+      </section>
+
+      <!-- ══ 9 / 模板瀑布 + 证言翻转 ══ -->
+      <section class="s-social" id="socialProof" data-zone="product" data-gate>
+        <div class="wrap">
+          <div class="panel panel--light">
+            <p class="eyebrow">模板瀑布</p>
+            <h2>点一下，飞进对话框。</h2>
+          </div>
+          <div class="marquee" aria-hidden="true">
+            <div class="marquee__track" data-marquee data-marquee-speed="36">
+              <span>改成更客气</span><span>三句话总结会议</span><span>起 8 个功能名</span><span>周报压到 200 字</span>
+              <span>用户旅程草图</span><span>练口语开场</span><span>比较方案取舍</span><span>待办四象限</span>
+            </div>
+          </div>
+          <div class="tpl-wall" id="templateWallExtra" data-stagger>
+            <button type="button" class="tpl-chip" data-tpl="帮我把这段话改成更客气的版本">改成更客气</button>
+            <button type="button" class="tpl-chip" data-tpl="用三句话总结今天的会议">三句话总结会议</button>
+            <button type="button" class="tpl-chip" data-tpl="给这个功能起 8 个候选名">起 8 个功能名</button>
+            <button type="button" class="tpl-chip" data-tpl="把周报压到 200 字，保留风险">周报压到 200 字</button>
+            <button type="button" class="tpl-chip" data-tpl="画一张「用户旅程」文字草图">用户旅程草图</button>
+            <button type="button" class="tpl-chip" data-tpl="陪我练 5 分钟英语口语开场">练口语开场</button>
+            <button type="button" class="tpl-chip" data-tpl="比较这两个方案的取舍">比较方案取舍</button>
+            <button type="button" class="tpl-chip" data-tpl="把待办按紧急/重要排一下">待办四象限</button>
+          </div>
+
+          <div class="review-row review-row--flip" data-stagger>
+            <article class="review-card review-card--flip">
+              <div class="review-card__inner">
+                <div class="review-card__front"><p>「终于不用把上下文复制来复制去了。」</p><span>— 示意 · 产品经理</span></div>
+                <div class="review-card__back"><p>跨会话记得住项目名与语气偏好。</p><span>亮点 · 记忆</span></div>
+              </div>
+            </article>
+            <article class="review-card review-card--flip">
+              <div class="review-card__inner">
+                <div class="review-card__front"><p>「按住说话查天气，双手腾出来切菜。」</p><span>— 示意 · 通勤族</span></div>
+                <div class="review-card__back"><p>实时语音进来，实时文字出去。</p><span>亮点 · 语音</span></div>
+              </div>
+            </article>
+            <article class="review-card review-card--flip">
+              <div class="review-card__inner">
+                <div class="review-card__front"><p>「改语气、砍长度，都在同一段对话里。」</p><span>— 示意 · 写作者</span></div>
+                <div class="review-card__back"><p>从大纲到成稿，不必换工具。</p><span>亮点 · 创作</span></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ 10 / 大 CTA 舞台 ══ -->
+      <section class="s-cta-stage" id="ctaStage" data-anchor="1.00" data-zone="craft" data-gate>
+        <div class="cta-stage wrap">
+          <p class="eyebrow">开始</p>
+          <h2 class="cta-stage__title">现在，说一句给她听。</h2>
+          <p class="cta-stage__lead">回到首屏对话框，或去 GitHub 看源码。本页为非官方致敬演示。</p>
+          <div class="cta-stage__actions">
+            <button type="button" class="cta-stage__btn" data-cursor="cta" data-magnetic>回到对话框</button>
+            <a class="cta-ghost" href="https://github.com/suhongshuo6-cell/doubao-landing" target="_blank" rel="noopener noreferrer">GitHub 源码</a>
+          </div>
+          <div class="marquee marquee--soft" aria-hidden="true">
+            <div class="marquee__track" data-marquee data-marquee-speed="22" data-marquee-dir="rtl">
+              <span>对话</span><span>写作</span><span>阅读</span><span>创作</span><span>搜索</span><span>语音</span><span>多模态</span><span>陪伴</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ══ 8 / FAQ ══ 版式：问题清单型（左侧标题栏 + 右侧手风琴，grid-template-rows 动画） -->
-      <section class="s-faq" id="faq">
-        <div class="s-faq__grid wrap">
-          <div class="s-faq__rail">
-            <p class="eyebrow" data-reveal>FAQ</p>
-            <h2 class="s-faq__title" data-reveal-lines>几个大概会被问到的问题。</h2>
-          </div>
-          <div class="s-faq__list" data-reveal>
-            <div class="qa">
-              <h3 class="qa__h">
-                <button class="qa__btn" type="button" aria-expanded="false">
-                  <span>这是豆包的官方页面吗？</span>
-                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
-                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </h3>
-              <div class="qa__body"><div class="qa__inner"><p>不是。这是个人制作的非官方致敬页面，与字节跳动及其产品没有任何隶属或合作关系，「豆包」相关商标归其所有者所有。</p></div></div>
-            </div>
-            <div class="qa">
-              <h3 class="qa__h">
-                <button class="qa__btn" type="button" aria-expanded="false">
-                  <span>页面上的人是真人吗？</span>
-                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
-                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </h3>
-              <div class="qa__body"><div class="qa__inner"><p>不是。角色是第三方 AI 生成的虚拟形象，不基于任何真实人物的肖像或姓名。</p></div></div>
-            </div>
-            <div class="qa">
-              <h3 class="qa__h">
-                <button class="qa__btn" type="button" aria-expanded="false">
-                  <span>那些「能力演示」真的调用了接口吗？</span>
-                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
-                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </h3>
-              <div class="qa__body"><div class="qa__inner"><p>没有。打字机、解析进度、像素点阵、音频波形全部是纯前端动画，不发起任何网络请求，也没有接任何模型。</p></div></div>
-            </div>
-            <div class="qa">
-              <h3 class="qa__h">
-                <button class="qa__btn" type="button" aria-expanded="false">
-                  <span>页面里的数字是官方数据吗？</span>
-                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
-                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </h3>
-              <div class="qa__body"><div class="qa__inner"><p>不是。数据带上的数字是对页面自身结构的描述性示意，不代表任何官方口径或产品指标。</p></div></div>
-            </div>
-            <div class="qa">
-              <h3 class="qa__h">
-                <button class="qa__btn" type="button" aria-expanded="false">
-                  <span>可以直接拿去用吗？</span>
-                  <svg class="chev" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true" focusable="false">
-                    <path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-              </h3>
-              <div class="qa__body"><div class="qa__inner"><p>代码以 MIT 许可发布，可以自由使用。但请不要直接拿它冒充官方产品；替换掉品牌名称与角色素材之后，它就是一套普通的前端模板。</p></div></div>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
-    <!-- ══ 9 / Footer ══ 版式：通栏收束型 -->
     <footer class="s-foot" id="footer">
       <div class="s-foot__cta">
-        <button class="cta-fire" id="fireBtn" type="button">戳我，给你放个烟花 🎉</button>
+        <button class="cta-fire" id="fireBtn" type="button">戳我，给你放个大烟花 🎆</button>
       </div>
       <div class="s-foot__grid wrap">
         <div class="s-foot__legal">
           <p>
-            本站为个人学习与致敬目的制作的技术演示，与字节跳动及其产品无关。页面内所有文案、数据、图像均为演示内容，不代表任何官方立场。角色形象为第三方生成的 AI 绘制素材。
+            本站为个人学习与致敬目的制作的技术演示，与字节跳动及其产品无关。页面内所有文案、数据、图像均为演示内容。角色形象为第三方生成的 AI 绘制素材。
           </p>
         </div>
         <div class="s-foot__links">
-          <a href="https://github.com/" target="_blank" rel="noopener noreferrer">GitHub 仓库</a>
+          <a href="https://github.com/suhongshuo6-cell/doubao-landing" target="_blank" rel="noopener noreferrer">GitHub 仓库</a>
           <a href="https://opensource.org/license/mit" target="_blank" rel="noopener noreferrer">MIT License</a>
           <span class="s-foot__built">Built with Three.js / GSAP / Lenis</span>
         </div>
@@ -436,12 +641,11 @@
       <p class="s-foot__copy">© 2026 · 非官方致敬项目</p>
     </footer>
 
-    <!-- 捏脸光标环：1px、--brand、透明度 0.25，克制到几乎看不见 -->
     <div class="pinch-ring" id="pinchRing" aria-hidden="true"></div>
     <aside class="interaction-hud" id="interactionHud" aria-live="polite" aria-atomic="true">
-      <div class="interaction-hud__top"><span id="interactionStatus">LOOK AROUND</span><b id="interactionCount">01 / 05</b></div>
+      <div class="interaction-hud__top"><span id="interactionStatus">QUEST</span><b id="interactionCount">01 / 05</b></div>
       <div class="interaction-hud__meter"><i></i><i></i><i></i><i></i><i></i></div>
-      <p id="interactionLine">移动视线，找到她的回应</p>
+      <p id="interactionLine">移动视线，解锁下一镜</p>
     </aside>
     <div class="character-whisper" id="characterWhisper" aria-live="polite"></div>
 

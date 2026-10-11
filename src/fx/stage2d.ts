@@ -158,6 +158,7 @@ export function createStage2d(): Stage2d | null {
       case 'send': {
         audio.cheer()
         mascot.press(0.9)
+        mascot.bounce(1.2)
         particles.ring(mascot.x, mascot.y, '#FF5A3C')
         if (!soft) {
           particles.burst(x, y, { n: 26, speedMin: 3, speedMax: 11, big: true, gravity: 0.04 })
@@ -205,7 +206,8 @@ export function createStage2d(): Stage2d | null {
     mascot.update(dt, elapsed)
     particles.update(dt)
 
-    if (glow) {
+    // 光斑交由 motion/spectacle 弹簧驱动；此处仅在无 spectacle 时兜底
+    if (glow && !glow.classList.contains('cursor-glow--spectacle')) {
       const k = 1 - Math.exp(-9 * dt)
       glowX += (pointerX - glowX) * k
       glowY += (pointerY - glowY) * k
