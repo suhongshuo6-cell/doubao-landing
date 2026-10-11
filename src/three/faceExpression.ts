@@ -9,6 +9,7 @@ import { FACE_EXPR, FACE_IMG_H, FACE_IMG_W, quadFrom, type EyeSpec } from './fac
  * 产出：眼睑 / 视线 / 张嘴 / 腮红 / 呼吸+轻晃。像素全在 plateShader 里做采样重映射。
  *
  * 调试：?expr=blink | blink-half | look-left | look-right | talk | happy | listen | think | off
+ * 策略：无眯眼（happy/listen/think 不压眼睑）；眨眼保留；视线跟随略加强；腮红轻量可选。
  */
 
 type Forced =
@@ -265,14 +266,12 @@ export class FaceExpression {
         }
       }
     }
-    // 右眼滞后 ~18ms；thinking 时半眯
+    // 右眼滞后 ~18ms；不叠 listen/think 半眯（丑）
     const lag = reduced ? 0 : 0.032
-    const thinkSquint = this.think * 0.22
-    const listenSquint = this.listen * 0.08
-    const baseClose = Math.max(closeBase, thinkSquint, listenSquint)
+    const baseClose = closeBase
     this.closeL = f ? baseClose : expApproach(this.closeL, baseClose, 55, dt)
     const delayed = this.blinkT >= 0 ? blinkCurve(this.blinkT - lag, this.blinkKind) : baseClose
-    const closeRTarget = f ? baseClose : Math.max(delayed, thinkSquint * 0.9, listenSquint)
+    const closeRTarget = f ? baseClose : delayed
     this.closeR = f ? baseClose : expApproach(this.closeR, closeRTarget, 55, dt)
 
     // ---------------- 视线：弹簧跟随 + 死区 + 轻跳视 + 温和闲时漂移 ----------------
@@ -295,9 +294,9 @@ export class FaceExpression {
         }
         this.gazeTarget.copy(reduced ? new THREE.Vector2() : this.idleTarget)
       } else {
-        // 鼠标：略放大 + 中心死区，静息脸更稳
-        const mx = deadzone(clamp(this.pointer.x * 1.7, -1, 1), 0.11)
-        const my = deadzone(clamp(this.pointer.y * 1.5, -1, 1), 0.11)
+        // 鼠标：略放大 + 中心死区；比上一版更明显一点
+        const mx = deadzone(clamp(this.pointer.x * 2.05, -1, 1), 0.08)
+        const my = deadzone(clamp(this.pointer.y * 1.85, -1, 1), 0.08)
         this.gazeTarget.set(mx, my)
       }
       if (this.think > 0.1) {
@@ -365,12 +364,10 @@ export class FaceExpression {
     u.uMouthOpen.value = this.mouth * FACE_EXPR.mouthOpenPx
     u.uSmile.value = h
 
-    const squint = h * 0.42 + this.listen * 0.08
-    const raise = h * 18 + this.listen * 4
-    const lidsL = Math.min(1, Math.max(this.closeL, squint + this.closeL * (1 - squint)))
-    const lidsR = Math.min(1, Math.max(this.closeR, squint * 0.95 + this.closeR * (1 - squint)))
-    u.uLids.value.set(lidsL, lidsR, raise, 0)
-    u.uBlush.value = clamp(h * 1.28 + this.listen * 0.18, 0, 1.35)
+    // 眼睑：只用眨眼 close；禁用开心下睑抬 / 眯眼 / listen·think 半眯
+    u.uLids.value.set(this.closeL, this.closeR, 0, 0)
+    // 腮红：可选、轻一点（happy 时）
+    u.uBlush.value = clamp(h * 0.62, 0, 0.85)
   }
 
   dispose(): void {
