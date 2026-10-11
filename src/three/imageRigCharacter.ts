@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { createSpring, SPRING } from '../lib/spring'
 import { clamp01, motionPrefs } from '../lib/motionPrefs'
 import { DEFAULT_METRICS, type CharacterMetrics, type CharacterRig } from './character'
+import { FaceExpression } from './faceExpression'
 import { createPlateMaterial, createPlateUniforms, type PlateUniforms } from './plateShader'
 
 /**
@@ -129,6 +130,18 @@ export class ImageRigCharacter implements CharacterRig {
   private manifest: Record<string, { bbox: number[]; layered: boolean }> = {}
   /** 帧率无关的平滑值，避免速度拖影在掉帧时跳变 */
   private smoothFocus = 0
+  /** 首屏脸部特写的表情（眨眼/视线/说话/开心/呼吸） */
+  private readonly expr = new FaceExpression()
+  private faceLayer: Layer | null = null
+  private readonly onFaceClick = (e: MouseEvent): void => {
+    if (this.framing > 0.06) return
+    const t = e.target as HTMLElement | null
+    if (t?.closest('button, a, input, textarea, select, label, [role="button"], .askbar, [data-ripple]')) return
+    // 只认点在脸上（屏幕中部那块）
+    const x = (e.clientX / window.innerWidth) * 2 - 1
+    const y = -(e.clientY / window.innerHeight) * 2 + 1
+    if (Math.abs(x) < 0.4 && y > -0.6 && y < 0.9) this.expr.triggerHappy()
+  }
 
   constructor(ctx: ImageRigContext) {
     this.camera = ctx.camera
@@ -221,6 +234,13 @@ export class ImageRigCharacter implements CharacterRig {
 
       shot.group.visible = false
       this.shots.push(shot)
+    }
+
+    const faceShot = this.shots.find((sh) => sh.plate === 'face')
+    this.faceLayer = faceShot?.layers.find((l) => !l.backdrop) ?? null
+    if (this.faceLayer) {
+      this.expr.bind(this.faceLayer.uniforms)
+      window.addEventListener('click', this.onFaceClick)
     }
 
     this.resize()
@@ -364,6 +384,7 @@ export class ImageRigCharacter implements CharacterRig {
 
   setPointer(ndc: THREE.Vector2): void {
     this.pointer.copy(ndc)
+    this.expr.setPointer(ndc)
   }
 
   update(dt: number): void {
@@ -405,6 +426,7 @@ export class ImageRigCharacter implements CharacterRig {
       if (!visible) continue
 
       const isBody = shot.plate === 'body'
+      if (this.faceLayer && shot.layers.includes(this.faceLayer)) this.expr.update(dt, this.faceLayer.uniforms)
 
       for (const layer of shot.layers) {
         const un = layer.uniforms
@@ -429,9 +451,10 @@ export class ImageRigCharacter implements CharacterRig {
         // 0.22 是"手指大小"在整屏 UV 上的量级：太小看不出形变，太大整张脸都在动
         un.uPressRadius.value = 0.22
 
-        const h = 2 * Math.abs(layer.depth) * tan * push
+        const isFace = layer === this.faceLayer
+        const h = 2 * Math.abs(layer.depth) * tan * push * (isFace ? this.expr.breath : 1)
         layer.mesh.scale.set(h * this.camera.aspect, h, 1)
-        layer.mesh.position.set(parX, parY, layer.depth)
+        layer.mesh.position.set(parX, parY + (isFace ? this.expr.breathY * h : 0), layer.depth)
       }
     }
   }
@@ -444,6 +467,8 @@ export class ImageRigCharacter implements CharacterRig {
   }
 
   dispose(): void {
+    window.removeEventListener('click', this.onFaceClick)
+    this.expr.dispose()
     for (const d of this.disposables) d.dispose()
     for (const t of this.textures) t.dispose()
     this.object3d.clear()

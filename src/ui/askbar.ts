@@ -169,6 +169,15 @@ export function initAskbar(hooks: AskbarHooks): () => void {
     springHeight()
   }
 
+  /** 表情系统钩子：等待/流式回复期间 speaking=true；结束时顺带一个 happy */
+  let speaking = false
+  const setSpeaking = (on: boolean, done = false): void => {
+    if (speaking === on) return
+    speaking = on
+    document.dispatchEvent(new CustomEvent('doubao:speaking', { detail: { speaking: on } }))
+    if (!on && done) document.dispatchEvent(new CustomEvent('doubao:reply-done'))
+  }
+
   const createStreamer = (
     el: HTMLElement,
   ): { push: (s: string) => void; finish: (followups?: string[]) => void; set: (s: string) => void } => {
@@ -210,6 +219,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
             renderFollowups(followups ?? ['再细一点', '换个说法', '继续追问'])
             bounceAvatar()
             send?.classList.remove('is-ready')
+            setSpeaking(false, true)
           }
         }, 30)
       },
@@ -217,6 +227,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
   }
 
   const showLegacyReply = (text: string): void => {
+    setSpeaking(false, true)
     if (!reply) return
     reply.textContent = text
     reply.classList.add('is-visible')
@@ -287,6 +298,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
     }, 420)
     hooks.onSend(text, rect.left + rect.width / 2, rect.top)
     document.dispatchEvent(new CustomEvent('doubao:asked', { detail: { text } }))
+    setSpeaking(true)
     appendBubble('你', text, 'user')
     input.value = ''
     attached = null
@@ -524,6 +536,7 @@ export function initAskbar(hooks: AskbarHooks): () => void {
 
   return () => {
     disposed = true
+    setSpeaking(false)
     abort?.abort()
     window.clearInterval(replyTimer)
     delete (window as unknown as { __askbarFill?: typeof fill }).__askbarFill

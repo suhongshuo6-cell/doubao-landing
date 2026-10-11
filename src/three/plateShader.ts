@@ -38,6 +38,29 @@ export interface PlateUniforms {
   uAspect: { value: number }
   /** 转身时的横向压缩（|cos|）：转到两个视图之间时压成一条线，视图就在那一刻换掉 */
   uSquash: { value: number }
+  /* ---- 表情（只有脸部特写板 uExpr=1；其余板全部走原路径） ---- */
+  uExpr: { value: number }
+  uEyeLTop: { value: THREE.Vector3 }
+  uEyeLBot: { value: THREE.Vector3 }
+  uEyeRTop: { value: THREE.Vector3 }
+  uEyeRBot: { value: THREE.Vector3 }
+  /** x0, x1, 上睑皮肤高度 px, 下睑皮肤高度 px */
+  uEyeLRange: { value: THREE.Vector4 }
+  uEyeRRange: { value: THREE.Vector4 }
+  uMouthQ: { value: THREE.Vector3 }
+  uMouthRange: { value: THREE.Vector2 }
+  /** 左眼闭合, 右眼闭合, 下睑上推 px, 未用 */
+  uLids: { value: THREE.Vector4 }
+  uGaze: { value: THREE.Vector2 }
+  uMouthOpen: { value: number }
+  uBlush: { value: number }
+  uCheekL: { value: THREE.Vector4 }
+  uCheekR: { value: THREE.Vector4 }
+  /** 眼皮肤色（眼裂 x0 端 / x1 端），从原图取样 */
+  uLidL0: { value: THREE.Vector3 }
+  uLidL1: { value: THREE.Vector3 }
+  uLidR0: { value: THREE.Vector3 }
+  uLidR1: { value: THREE.Vector3 }
 }
 
 export function createPlateUniforms(): PlateUniforms {
@@ -54,6 +77,25 @@ export function createPlateUniforms(): PlateUniforms {
     uPressSquash: { value: 0.05 },
     uAspect: { value: 16 / 9 },
     uSquash: { value: 1 },
+    uExpr: { value: 0 },
+    uEyeLTop: { value: new THREE.Vector3() },
+    uEyeLBot: { value: new THREE.Vector3() },
+    uEyeRTop: { value: new THREE.Vector3() },
+    uEyeRBot: { value: new THREE.Vector3() },
+    uEyeLRange: { value: new THREE.Vector4() },
+    uEyeRRange: { value: new THREE.Vector4() },
+    uMouthQ: { value: new THREE.Vector3() },
+    uMouthRange: { value: new THREE.Vector2() },
+    uLids: { value: new THREE.Vector4() },
+    uGaze: { value: new THREE.Vector2() },
+    uMouthOpen: { value: 0 },
+    uBlush: { value: 0 },
+    uCheekL: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uCheekR: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uLidL0: { value: new THREE.Vector3() },
+    uLidL1: { value: new THREE.Vector3() },
+    uLidR0: { value: new THREE.Vector3() },
+    uLidR1: { value: new THREE.Vector3() },
   }
 }
 
@@ -78,7 +120,125 @@ const FRAGMENT = /* glsl */ `
   uniform float uPressSquash;
   uniform float uAspect;
   uniform float uSquash;
+  uniform float uExpr;
+  uniform vec3 uEyeLTop;
+  uniform vec3 uEyeLBot;
+  uniform vec3 uEyeRTop;
+  uniform vec3 uEyeRBot;
+  uniform vec4 uEyeLRange;
+  uniform vec4 uEyeRRange;
+  uniform vec3 uMouthQ;
+  uniform vec2 uMouthRange;
+  uniform vec4 uLids;
+  uniform vec2 uGaze;
+  uniform float uMouthOpen;
+  uniform float uBlush;
+  uniform vec4 uCheekL;
+  uniform vec4 uCheekR;
+  uniform vec3 uLidL0;
+  uniform vec3 uLidL1;
+  uniform vec3 uLidR0;
+  uniform vec3 uLidR1;
   varying vec2 vUv;
+
+  // ================= 表情：全部是"采样坐标重映射"，像素永远来自原图本身 =================
+  float quadAt(vec3 c, float x) { return (c.x * x + c.y) * x + c.z; }
+
+  // 眨眼 = 把眼裂上方那条上睑皮肤（含睫毛线）向下拉伸盖住眼裂；
+  // 眯眼 = 下睑皮肤向上推；视线 = 只在眼裂内部平移采样，边缘软衰减到 0。
+  // 眨眼的三层：
+  //   ① 睫毛根那条深色眼睑缘（BAND px）整体刚性下移到闭合线 —— 不拉伸
+  //   ② 其上的眼皮皮肤被拉长填补，同时混入低频（模糊）版本，长睫毛不会被拉成条纹
+  //   ③ 闭合线以下按"变暗"混合一份上下镜像的睫毛 = 闭眼时下垂的睫毛，不产生皮肤重影
+  vec2 eyeWarp(vec2 p, vec3 T, vec3 B, vec4 R, float close, float raise,
+               vec3 cA, vec3 cB,
+               inout float shade, inout float blurAmt, inout vec3 lash, inout vec4 lid) {
+    if (p.x <= R.x || p.x >= R.y) return p;
+    float mid = (R.x + R.y) * 0.5;
+    float hw = (R.y - R.x) * 0.5;
+    float u = (p.x - mid) / hw;
+    float w = clamp(1.0 - u * u, 0.0, 1.0);
+    float top = quadAt(T, p.x);
+    float bot = quadAt(B, p.x);
+    float h = max(bot - top, 0.0);
+    float skin = R.z * (0.35 + 0.65 * w);
+    const float BAND = 6.0;
+    float lr = raise * w;
+    // 全闭时多盖 2px，把下缘那一丝眼白也压住
+    float drop = min(close * (h + 2.0 * w), max(h + 2.0 * w - lr, 0.0));
+    float lidY = top + drop;
+    vec2 s = p;
+    if (close > 0.001 && p.y > top - skin && p.y < lidY - BAND) {
+      float t = (p.y - (top - skin)) / (skin - BAND + drop);
+      s.y = top - skin + t * (skin - BAND);
+      float stretch = drop / max(skin - BAND, 1.0);
+      float k = smoothstep(0.0, 0.6, stretch) * smoothstep(0.0, 0.6, t) * smoothstep(0.0, 0.55, w);
+      blurAmt = max(blurAmt, smoothstep(0.0, 0.6, stretch) * smoothstep(0.0, 0.3, t));
+      // 从原图取样标定的眼皮肤色（两端各一个），沿眼裂横向插值
+      lid = vec4(mix(cA, cB, clamp(u * 0.5 + 0.5, 0.0, 1.0)) * (1.0 - 0.06 * t), k * 0.8);
+      shade = max(shade, t * close * sqrt(w));
+    } else if (close > 0.001 && p.y >= lidY - BAND && p.y < lidY) {
+      s.y = p.y - drop;
+      shade = max(shade, close * sqrt(w));
+    } else if (lr > 0.01 && p.y >= bot - lr && p.y < bot + R.w) {
+      float t = (p.y - (bot - lr)) / (R.w + lr);
+      s.y = bot + t * R.w;
+    } else if (p.y >= lidY && p.y < bot + 2.0) {
+      float m = smoothstep(0.0, 5.0, p.y - top) * smoothstep(0.0, 4.0, bot - p.y) * smoothstep(0.0, 0.4, w);
+      s -= uGaze * m;
+    }
+    // ③ 下垂睫毛：闭合线下方 0~18px，镜像取上睑睫毛（top 以上），按闭合度淡入
+    if (close > 0.35 && p.y >= lidY && p.y < lidY + 18.0) {
+      float d = p.y - lidY;
+      lash = vec3(p.x, top - BAND - d * 0.9, smoothstep(0.35, 0.9, close) * (1.0 - d / 18.0) * w);
+    }
+    return s;
+  }
+
+  // 说话 = 沿唇缝把下唇向下推、上唇微微上提，中间露出口腔暗色。
+  vec2 mouthWarp(vec2 p, inout vec4 inner, inout float lipShade) {
+    if (uMouthOpen < 0.05 || p.x <= uMouthRange.x || p.x >= uMouthRange.y) return p;
+    float mid = (uMouthRange.x + uMouthRange.y) * 0.5;
+    float hw = (uMouthRange.y - uMouthRange.x) * 0.5;
+    float u = (p.x - mid) / hw;
+    float w = clamp(1.0 - u * u, 0.0, 1.0);
+    // 开口两头收尖：中间最大，嘴角几乎不动
+    float g = uMouthOpen * pow(w, 1.7);
+    float up = g * 0.25;
+    float seam = quadAt(uMouthQ, p.x);
+    const float RD = 62.0;   // 下唇 + 下巴参与形变的高度
+    const float RU = 34.0;   // 上唇参与形变的高度
+    vec2 s = p;
+    if (p.y > seam - RU && p.y < seam - up) {
+      float t = (p.y - (seam - RU)) / (RU - up);
+      s.y = seam - RU + t * RU;
+      lipShade = max(lipShade, smoothstep(seam - up - 4.0, seam - up, p.y) * smoothstep(1.0, 5.0, g));
+    } else if (p.y >= seam - up && p.y < seam + g) {
+      float span = g + up;
+      float tg = (p.y - (seam - up)) / max(span, 0.001);
+      vec3 dark = vec3(0.17, 0.05, 0.06);
+      vec3 warm = vec3(0.42, 0.16, 0.16);
+      // 口腔：上下缘偏暖（唇内侧），中间最深
+      vec3 col = mix(warm, dark, smoothstep(0.0, 0.5, tg) * smoothstep(1.0, 0.55, tg));
+      // 张得够大时上缘露一点上齿
+      vec3 teeth = vec3(0.78, 0.70, 0.67);
+      col = mix(col, teeth, (1.0 - smoothstep(0.0, 0.32, tg)) * smoothstep(4.5, 8.0, span) * smoothstep(0.35, 0.8, w) * 0.75);
+      float e = min(p.y - (seam - up), seam + g - p.y);
+      float edge = smoothstep(-0.3, 1.6, e);
+      inner = vec4(col, edge * smoothstep(0.0, 0.25, w) * smoothstep(0.4, 2.0, span));
+      s.y = seam;
+    } else if (p.y >= seam + g && p.y < seam + RD) {
+      float t = (p.y - (seam + g)) / (RD - g);
+      s.y = seam + t * RD;
+      lipShade = max(lipShade, (1.0 - smoothstep(seam + g, seam + g + 4.0, p.y)) * smoothstep(1.0, 5.0, g));
+    }
+    return s;
+  }
+
+  float cheek(vec2 p, vec4 c) {
+    vec2 d = (p - c.xy) / c.zw;
+    return exp(-dot(d, d) * 1.6);
+  }
 
   // 九抽样：中心 + 四正 + 四斜，权重和为 1
   vec4 blur9(vec2 uv, float r) {
@@ -129,6 +289,23 @@ const FRAGMENT = /* glsl */ `
     // ---- 3. cover：把 16:9 的板铺满当前视口比例 --------------------------
     vec2 texUv = clamp(uv, vec2(0.0), vec2(1.0)) * uUvScale + uUvOffset;
 
+    // ---- 3.5 表情：在贴图像素坐标里重映射（原图 1:1 采样，不引入任何新像素） ----
+    float lidShade = 0.0;
+    float blurAmt = 0.0;
+    vec3 lash = vec3(0.0);
+    vec4 lidCol = vec4(0.0);
+    float lipShade = 0.0;
+    vec4 inner = vec4(0.0);
+    float blush = 0.0;
+    if (uExpr > 0.5) {
+      vec2 p = vec2(texUv.x * 1280.0, (1.0 - texUv.y) * 720.0);
+      p = eyeWarp(p, uEyeLTop, uEyeLBot, uEyeLRange, uLids.x, uLids.z, uLidL0, uLidL1, lidShade, blurAmt, lash, lidCol);
+      p = eyeWarp(p, uEyeRTop, uEyeRBot, uEyeRRange, uLids.y, uLids.z, uLidR0, uLidR1, lidShade, blurAmt, lash, lidCol);
+      p = mouthWarp(p, inner, lipShade);
+      if (uBlush > 0.001) blush = uBlush * (cheek(p, uCheekL) + cheek(p, uCheekR));
+      texUv = vec2(p.x / 1280.0, 1.0 - p.y / 720.0);
+    }
+
     // ---- 4. 焦点虚化 + 速度拖影 ------------------------------------------
     vec2 texel = vec2(1.0 / 1280.0, 1.0 / 720.0) * uUvScale;
     float focusR = uFocus * 0.045;
@@ -150,6 +327,27 @@ const FRAGMENT = /* glsl */ `
 
     // 坑沿压暗：克制到 12%，只负责"这是软的"这一层信息
     color.rgb *= 1.0 - 0.18 * dent * uPressStrength;
+
+    if (uExpr > 0.5) {
+      if (blurAmt > 0.001) {
+        vec2 r = vec2(8.0 / 1280.0, 0.0);
+        // 被拉长的睫毛是竖条纹 → 主要靠横向模糊抹掉
+        vec4 bh = vec4(0.0);
+        for (int i = -4; i <= 4; i++) bh += texture2D(uMap, texUv + vec2(float(i) * 3.5 / 1280.0, 0.0));
+        bh /= 9.0;
+        vec4 bl = mix(blur9(texUv, r.x), bh, 0.6);
+        color = mix(color, bl, blurAmt);
+      }
+      color.rgb = mix(color.rgb, lidCol.rgb, lidCol.a);
+      if (lash.z > 0.001) {
+        vec3 lc = texture2D(uMap, vec2(lash.x / 1280.0, 1.0 - lash.y / 720.0)).rgb;
+        color.rgb = mix(color.rgb, min(color.rgb, lc), lash.z);
+      }
+      color.rgb *= 1.0 - 0.07 * lidShade;
+      color.rgb *= 1.0 - 0.22 * lipShade;
+      color.rgb = mix(color.rgb, inner.rgb, inner.a);
+      color.rgb = mix(color.rgb, color.rgb * vec3(1.02, 0.84, 0.86), clamp(blush, 0.0, 1.0) * 0.55);
+    }
 
     gl_FragColor = vec4(color.rgb, color.a * uOpacity);
   }
