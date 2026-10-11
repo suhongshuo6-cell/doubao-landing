@@ -72,6 +72,31 @@ export function initEaster(deps: EasterDeps): () => void {
   const pinchTimer = window.setInterval(checkPinch, 600)
   destroyers.push(() => window.clearInterval(pinchTimer))
 
+
+  // 输入「你好豆包」彩蛋（监听 askbar 发送）
+  const onAsked = (e: Event): void => {
+    const detail = (e as CustomEvent<{ text?: string }>).detail
+    const text = (detail?.text ?? '').trim()
+    if (!/你好.?豆包|嗨.?豆包|hello.?doubao/i.test(text)) return
+    deps.audio.cheer()
+    deps.mascot.bounce(1.5)
+    deps.particles.burst(deps.mascot.x, deps.mascot.y, {
+      n: 28,
+      speedMin: 3,
+      speedMax: 12,
+      big: true,
+      colors: ['#FF5A3C', '#FFB020', '#7EB6FF'],
+    })
+    const whisper = document.getElementById('characterWhisper')
+    if (whisper) {
+      whisper.textContent = '我也在，一直都在。'
+      whisper.classList.add('is-visible')
+      window.setTimeout(() => whisper.classList.remove('is-visible'), 2000)
+    }
+  }
+  document.addEventListener('doubao:asked', onAsked)
+  destroyers.push(() => document.removeEventListener('doubao:asked', onAsked))
+
   // 页脚烟花加重
   const fireBtn = document.getElementById('fireBtn')
   const onFire = (): void => {
@@ -114,7 +139,7 @@ function showAvatarTheater(onDone: () => void): void {
   el.className = 'avatar-theater'
   el.innerHTML = `
     <div class="avatar-theater__card">
-      <img src="${import.meta.env.BASE_URL}img/doubao-official-chibi.png" alt="" width="96" height="96" />
+      <img src="/img/doubao-official-chibi.png" alt="" width="96" height="96" />
       <p class="avatar-theater__title">你找到了隐藏剧场</p>
       <p class="avatar-theater__line">「今天也要好好聊天呀。」</p>
       <button type="button" class="avatar-theater__ok">好的，豆包</button>
