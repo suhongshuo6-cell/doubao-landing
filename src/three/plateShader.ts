@@ -176,12 +176,12 @@ const FRAGMENT = /* glsl */ `
       float t = (p.y - (top - skin)) / destH;
       float srcH = max(skin - BAND, 1.0);
       // 源条带上半部（更干净）权重大一点，减少睫毛根被拖进来
-      float srcT = mix(0.05, 0.92, t * t);
+      float srcT = mix(0.08, 0.78, t * t);  // 更偏上半干净眼皮，少拖睫毛
       s.y = (top - skin) + srcT * srcH;
       float stretch = drop / srcH;
       float k = smoothstep(0.15, 0.85, stretch) * smoothstep(0.05, 0.7, t) * smoothstep(0.0, 0.45, w);
-      blurAmt = max(blurAmt, smoothstep(0.1, 0.9, stretch) * 0.85);
-      lid = vec4(mix(cA, cB, clamp(u * 0.5 + 0.5, 0.0, 1.0)) * (1.0 - 0.04 * t), k * mix(0.55, 0.95, close));
+      blurAmt = max(blurAmt, smoothstep(0.08, 0.75, stretch) * 0.95);
+      lid = vec4(mix(cA, cB, clamp(u * 0.5 + 0.5, 0.0, 1.0)) * (1.0 - 0.03 * t), k * mix(0.62, 0.98, close));
       shade = max(shade, t * close * sqrt(w) * 0.7);
     } else if (close > 0.001 && p.y >= lidY - BAND && p.y < lidY) {
       s.y = p.y - drop;
@@ -196,7 +196,7 @@ const FRAGMENT = /* glsl */ `
     // ③ 下垂睫毛：闭合线下方 0~18px，镜像取上睑睫毛（top 以上），按闭合度淡入
     if (close > 0.35 && p.y >= lidY && p.y < lidY + 18.0) {
       float d = p.y - lidY;
-      lash = vec3(p.x, top - BAND - d * 0.9, smoothstep(0.35, 0.9, close) * (1.0 - d / 18.0) * w);
+      lash = vec3(p.x, top - BAND - d * 0.85, smoothstep(0.4, 0.95, close) * (1.0 - d / 16.0) * w * 0.85);
     }
     return s;
   }

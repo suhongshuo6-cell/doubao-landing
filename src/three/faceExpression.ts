@@ -22,26 +22,60 @@ const clamp = (v: number, a: number, b: number): number => Math.min(b, Math.max(
 const expApproach = (cur: number, target: number, rate: number, dt: number): number =>
   cur + (target - cur) * (1 - Math.exp(-rate * dt))
 
-/** 单次眨眼闭合曲线。slow ≈ 1.7× 时长；soft 不完全合上。 */
+/** 单次眨眼：闭得干脆、睁得更慢（ease-out），避免机械感。 */
 function blinkCurve(t: number, kind: BlinkKind): number {
-  const scale = kind === 'slow' ? 1.7 : 1
-  const hold = kind === 'slow' ? 0.05 : 0.035
-  const closeT = 0.07 * scale
-  const openT = 0.16 * scale
-  const peak = kind === 'soft' ? 0.78 : 1
+  const closeT = kind === 'slow' ? 0.10 : kind === 'soft' ? 0.08 : 0.075
+  const hold = kind === 'slow' ? 0.055 : kind === 'soft' ? 0.03 : 0.04
+  // 睁眼明显长于闭眼 —— 自然眨眼的特征
+  const openT = kind === 'slow' ? 0.32 : kind === 'soft' ? 0.22 : 0.24
+  const peak = kind === 'soft' ? 0.72 : kind === 'slow' ? 1 : 0.98
   if (t < 0) return 0
-  if (t < closeT) { const k = t / closeT; return peak * k * k }
+  if (t < closeT) {
+    const k = t / closeT
+    // 稍加速闭合（ease-in）
+    return peak * k * k
+  }
   if (t < closeT + hold) return peak
   if (t < closeT + hold + openT) {
     const k = (t - closeT - hold) / openT
-    return peak * (1 - k * k * (3 - 2 * k))
+    // 更长的 ease-out 睁开
+    const e = 1 - Math.pow(1 - k, 2.4)
+    return peak * (1 - e)
   }
   return 0
 }
 
 function blinkDuration(kind: BlinkKind): number {
-  const scale = kind === 'slow' ? 1.7 : 1
-  return 0.07 * scale + (kind === 'slow' ? 0.05 : 0.035) + 0.16 * scale + 0.02
+  const closeT = kind === 'slow' ? 0.10 : kind === 'soft' ? 0.08 : 0.075
+  const hold = kind === 'slow' ? 0.055 : kind === 'soft' ? 0.03 : 0.04
+  const openT = kind === 'slow' ? 0.32 : kind === 'soft' ? 0.22 : 0.24
+  return closeT + hold + openT + 0.02
+}
+
+/** 临界阻尼弹簧一步：位置+速度 → 新位置/速度 */
+function springStep(
+  pos: number, vel: number, target: number, dt: number, freq = 7.5, damp = 1.0,
+): [number, number] {
+  // x'' + 2ζω x' + ω²(x−t) = 0 ；ζ≥1 不超调
+  const w = freq * Math.PI * 2
+  const a = -2 * damp * w * vel - w * w * (pos - target)
+  let nv = vel + a * dt
+  let np = pos + nv * dt
+  // 速度硬帽，防止鼠标甩飞
+  const vmax = 4.2
+  if (nv > vmax) nv = vmax
+  else if (nv < -vmax) nv = -vmax
+  return [np, nv]
+}
+
+/** 中心死区：|v|<d 压成 0，之外平滑接出 */
+function deadzone(v: number, d = 0.12): number {
+  const a = Math.abs(v)
+  if (a <= d) return 0
+  const s = Math.sign(v)
+  const t = (a - d) / (1 - d)
+  // 平滑起步，避免死区边缘一跳
+  return s * t * t * (3 - 2 * t)
 }
 
 function eyeRange(e: EyeSpec, lowerSkin: number): THREE.Vector4 {
@@ -51,7 +85,7 @@ function eyeRange(e: EyeSpec, lowerSkin: number): THREE.Vector4 {
 export class FaceExpression {
   private readonly forced: Forced
   private time = 0
-  private nextBlink = rand(1.0, 2.4)
+  private nextBlink = rand(1.6, 3.8)
   private blinkT = -1
   private blinkKind: BlinkKind = 'normal'
   private blinkQueue: Array<{ gap: number; kind: BlinkKind }> = []
@@ -62,6 +96,7 @@ export class FaceExpression {
   private gaze = new THREE.Vector2()
   private gazeTarget = new THREE.Vector2()
   private gazeSmooth = new THREE.Vector2()
+  private gazeVel = new THREE.Vector2()
   private idleTarget = new THREE.Vector2()
   private nextIdle = 0
   private nextSaccade = rand(0.4, 1.2)
@@ -202,9 +237,10 @@ export class FaceExpression {
         // 双眨的第二下：kind 已在上一次结束时写好；首眨才随机选型
         if (!this.inDouble) {
           const r = Math.random()
-          this.blinkKind = r < 0.12 ? 'slow' : r < 0.28 ? 'soft' : 'normal'
-          if (Math.random() < 0.22) {
-            this.blinkQueue = [{ gap: 0.28, kind: 'soft' }]
+          // ~18% slow / ~30% soft / rest normal —— 节奏不均
+          this.blinkKind = r < 0.18 ? 'slow' : r < 0.48 ? 'soft' : 'normal'
+          if (Math.random() < 0.18) {
+            this.blinkQueue = [{ gap: rand(0.22, 0.4), kind: Math.random() < 0.6 ? 'soft' : 'normal' }]
             this.inDouble = true
           } else {
             this.blinkQueue = []
@@ -224,13 +260,13 @@ export class FaceExpression {
             this.blinkKind = next.kind
             this.nextBlink = this.time + next.gap
           } else {
-            this.nextBlink = this.time + rand(2.2, 5.5)
+            this.nextBlink = this.time + rand(2.8, 6.8)
           }
         }
       }
     }
     // 右眼滞后 ~18ms；thinking 时半眯
-    const lag = reduced ? 0 : 0.018
+    const lag = reduced ? 0 : 0.032
     const thinkSquint = this.think * 0.22
     const listenSquint = this.listen * 0.08
     const baseClose = Math.max(closeBase, thinkSquint, listenSquint)
@@ -239,56 +275,62 @@ export class FaceExpression {
     const closeRTarget = f ? baseClose : Math.max(delayed, thinkSquint * 0.9, listenSquint)
     this.closeR = f ? baseClose : expApproach(this.closeR, closeRTarget, 55, dt)
 
-    // ---------------- 视线：奶油跟随 + 微跳视 + 闲时漂移 ----------------
+    // ---------------- 视线：弹簧跟随 + 死区 + 轻跳视 + 温和闲时漂移 ----------------
     const [gx, gy] = FACE_EXPR.gazePx
-    if (f === 'look-left') this.gazeTarget.set(-1, 0.2)
-    else if (f === 'look-right') this.gazeTarget.set(1, 0.18)
-    else if (f === 'listen') this.gazeTarget.set(0.12, 0.08)
-    else if (f === 'think') this.gazeTarget.set(-0.35, 0.45)
+    if (f === 'look-left') this.gazeTarget.set(-1, 0.15)
+    else if (f === 'look-right') this.gazeTarget.set(1, 0.12)
+    else if (f === 'listen') this.gazeTarget.set(0.1, 0.06)
+    else if (f === 'think') this.gazeTarget.set(-0.3, 0.4)
     else if (f) this.gazeTarget.set(0, 0)
     else {
-      const idle = this.time - this.lastPointerAt > 2.8
+      const idle = this.time - this.lastPointerAt > 3.2
       if (this.orient) {
-        this.gazeTarget.copy(this.orient)
+        this.gazeTarget.set(deadzone(this.orient.x, 0.1), deadzone(this.orient.y, 0.1))
       } else if (idle) {
         if (this.time >= this.nextIdle) {
-          // 偶尔看向用户（回正），偶尔飘到一侧
-          if (Math.random() < 0.4) this.idleTarget.set(0, 0)
-          else this.idleTarget.set(rand(-0.75, 0.75), rand(-0.4, 0.45))
-          this.nextIdle = this.time + rand(1.2, 3.2)
+          // 多数时间看向镜头；偶尔轻飘
+          if (Math.random() < 0.62) this.idleTarget.set(0, 0)
+          else this.idleTarget.set(rand(-0.4, 0.4), rand(-0.22, 0.28))
+          this.nextIdle = this.time + rand(2.0, 4.5)
         }
         this.gazeTarget.copy(reduced ? new THREE.Vector2() : this.idleTarget)
       } else {
-        // 鼠标：放大映射，边缘也能打满
-        this.gazeTarget.set(
-          clamp(this.pointer.x * 2.05, -1, 1),
-          clamp(this.pointer.y * 1.85, -1, 1),
-        )
+        // 鼠标：略放大 + 中心死区，静息脸更稳
+        const mx = deadzone(clamp(this.pointer.x * 1.7, -1, 1), 0.11)
+        const my = deadzone(clamp(this.pointer.y * 1.5, -1, 1), 0.11)
+        this.gazeTarget.set(mx, my)
       }
-      // 听/想时视线略抬高、微微避开正中
       if (this.think > 0.1) {
-        this.gazeTarget.x = expApproach(this.gazeTarget.x, -0.3, 4, dt)
-        this.gazeTarget.y = Math.max(this.gazeTarget.y, 0.35 * this.think)
+        this.gazeTarget.x = expApproach(this.gazeTarget.x, -0.28, 3.5, dt)
+        this.gazeTarget.y = Math.max(this.gazeTarget.y, 0.32 * this.think)
       } else if (this.listen > 0.1) {
-        this.gazeTarget.y = Math.max(this.gazeTarget.y, 0.1 * this.listen)
+        this.gazeTarget.y = Math.max(this.gazeTarget.y, 0.08 * this.listen)
       }
     }
 
-    // 微跳视：定住时每隔一段时间抖一下小幅位移，再弹回
-    if (!f && !reduced && this.time >= this.nextSaccade) {
-      this.saccade.set(rand(-0.08, 0.08), rand(-0.05, 0.05))
-      this.nextSaccade = this.time + rand(0.55, 1.8)
+    // 微跳视：更稀、更小，只在已接近目标时点一下
+    const nearTarget = Math.hypot(this.gaze.x - this.gazeTarget.x, this.gaze.y - this.gazeTarget.y) < 0.12
+    if (!f && !reduced && nearTarget && this.time >= this.nextSaccade) {
+      this.saccade.set(rand(-0.035, 0.035), rand(-0.022, 0.022))
+      this.nextSaccade = this.time + rand(1.4, 3.2)
     }
-    this.saccade.x = expApproach(this.saccade.x, 0, 9, dt)
-    this.saccade.y = expApproach(this.saccade.y, 0, 9, dt)
+    this.saccade.x = expApproach(this.saccade.x, 0, 6, dt)
+    this.saccade.y = expApproach(this.saccade.y, 0, 6, dt)
 
-    // 两段平滑：快跟目标 + 奶油层，避免"贴鼠标"的机械感
-    const track = f ? 1000 : reduced ? 10 : (this.time - this.lastPointerAt < 2.8 ? 28 : 11)
-    this.gazeSmooth.x = expApproach(this.gazeSmooth.x, this.gazeTarget.x, track, dt)
-    this.gazeSmooth.y = expApproach(this.gazeSmooth.y, this.gazeTarget.y, track, dt)
-    const cream = f ? 1000 : 22
-    this.gaze.x = expApproach(this.gaze.x, this.gazeSmooth.x + (f ? 0 : this.saccade.x), cream, dt)
-    this.gaze.y = expApproach(this.gaze.y, this.gazeSmooth.y + (f ? 0 : this.saccade.y), cream, dt)
+    // 临界阻尼弹簧：调试态瞬时到位；常态柔和、不超调
+    if (f) {
+      this.gaze.copy(this.gazeTarget)
+      this.gazeVel.set(0, 0)
+      this.gazeSmooth.copy(this.gazeTarget)
+    } else {
+      const freq = reduced ? 4.5 : 6.8
+      const desiredX = this.gazeTarget.x + this.saccade.x
+      const desiredY = this.gazeTarget.y + this.saccade.y
+      ;[this.gaze.x, this.gazeVel.x] = springStep(this.gaze.x, this.gazeVel.x, desiredX, dt, freq, 1.05)
+      ;[this.gaze.y, this.gazeVel.y] = springStep(this.gaze.y, this.gazeVel.y, desiredY, dt, freq, 1.05)
+      this.gaze.x = clamp(this.gaze.x, -1.05, 1.05)
+      this.gaze.y = clamp(this.gaze.y, -1.05, 1.05)
+    }
     u.uGaze.value.set(this.gaze.x * gx, -this.gaze.y * gy)
 
     // ---------------- 说话：流式 token 脉冲驱动音节 ----------------
