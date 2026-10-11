@@ -1264,3 +1264,239 @@ html.interaction-live .interaction-hud__meter i.is-on { background: var(--brand)
     opacity: 0.9;
   }
 }
+
+/* ============================================================================
+   FX 层 —— 合并自 demo 的交互：粒子 / 小豆包 / 鼠标柔光 / 首屏输入条 / 页脚烟花
+
+   配色一律走 token：全站只有 --brand 一个强调色，这里也不引入第二个。
+   分层：#fx 与 #stage 同层（--z-stage）、DOM 更靠后 → 压在角色之上、正文之下；
+        #cursorGlow 同理，柔光不该盖住文字。
+   ========================================================================== */
+
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-stage);
+  display: block;
+  pointer-events: none;
+}
+
+.cursor-glow {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 340px;
+  height: 340px;
+  margin: -170px 0 0 -170px; /* 居中用 margin，transform 留给 JS 写位置 */
+  border-radius: 50%;
+  z-index: var(--z-stage);
+  pointer-events: none;
+  background: radial-gradient(circle, var(--brand-a12), transparent 62%);
+  opacity: 0;
+  will-change: transform;
+}
+
+/* ---- 导航里的音效开关 ---- */
+.nav__sound {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    color var(--dur-s) var(--ease-out),
+    border-color var(--dur-s) var(--ease-out);
+}
+.nav__sound:hover {
+  color: var(--ink);
+  border-color: var(--brand-a25);
+}
+.nav__sound[aria-pressed='true'] {
+  color: var(--brand);
+}
+.nav__sound-slash {
+  opacity: 0;
+  transition: opacity var(--dur-s) var(--ease-out);
+}
+.sound-off .nav__sound-slash {
+  opacity: 1;
+}
+.sound-off .nav__sound-wave {
+  opacity: 0.2;
+}
+
+/* ---- 首屏输入条：全站唯一的「会回应你」入口 ---- */
+.hero__ask {
+  /* 绝对定位而不是参与 flex 流：.s-hero 是 space-between + 100svh，
+     多一个流内子元素会把整屏撑破，输入条就被挤到首屏之外了。
+     压在立绘中下部：上方留给脸，下方留给滚动提示。 */
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(132px, 17vh, 184px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-inline: var(--gutter);
+  pointer-events: none; /* 只有输入条本身可点，避免挡住立绘的捏脸 */
+}
+
+.askbar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(470px, 100%);
+  padding: 12px 14px 12px 20px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-1);
+  pointer-events: auto;
+  transition:
+    border-color var(--dur-m) var(--ease-out),
+    box-shadow var(--dur-m) var(--ease-out);
+}
+.askbar:focus-within {
+  border-color: var(--brand-a25);
+  box-shadow: var(--shadow-2);
+}
+.askbar__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.askbar__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.askbar__input::placeholder {
+  color: var(--ink-3);
+}
+.askbar__send {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--dur-s) var(--ease-out);
+}
+.askbar__send:hover {
+  transform: translateY(-1px) scale(1.06);
+}
+.askbar__send:active {
+  transform: scale(0.94);
+}
+
+.askbar__reply {
+  min-height: 1.5em;
+  max-width: 470px;
+  margin: 12px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+  text-align: center;
+  opacity: 0;
+  transition: opacity var(--dur-m) var(--ease-out);
+}
+.askbar__reply.is-visible {
+  opacity: 1;
+}
+
+.hero__hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 10px;
+  margin: clamp(16px, 3vh, 28px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.hero__hints li {
+  padding: 5px 11px;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+}
+
+/* ---- 页脚烟花 ---- */
+.s-foot__cta {
+  display: flex;
+  justify-content: center;
+  padding: clamp(40px, 8vh, 88px) var(--gutter) 0;
+}
+.cta-fire {
+  padding: 15px 30px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    transform var(--dur-s) var(--ease-out),
+    box-shadow var(--dur-m) var(--ease-out);
+}
+.cta-fire:hover {
+  transform: translateY(-2px);
+}
+.cta-fire:active {
+  transform: scale(0.97);
+}
+
+/* ---- 触屏 / 窄屏 ---- */
+@media (max-width: 767px) {
+  .cursor-glow {
+    display: none; /* 没有悬停概念，柔光只会碍事 */
+  }
+  .askbar {
+    padding: 10px 12px 10px 16px;
+  }
+  .hero__ask {
+    bottom: clamp(88px, 13vh, 132px);
+  }
+  .hero__hints {
+    gap: 6px;
+  }
+  .hero__hints li {
+    padding: 4px 9px;
+  }
+}
+
+/* ---- 用户要求减少动态效果：这些装饰一律让位 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .cursor-glow {
+    display: none;
+  }
+  .nav__sound,
+  .askbar,
+  .askbar__send,
+  .cta-fire {
+    transition: none;
+  }
+}

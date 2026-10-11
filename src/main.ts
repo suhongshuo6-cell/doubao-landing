@@ -15,6 +15,8 @@ import { motionPrefs } from './lib/motionPrefs'
 import { initNav } from './ui/nav'
 import { initProgressRail } from './ui/progressRail'
 import { initContentSections, initStageSections } from './sections'
+import { createStage2d } from './fx/stage2d'
+import { initAskbar } from './ui/askbar'
 import type { CharacterRig } from './three/character'
 
 /**
@@ -70,6 +72,74 @@ function boot(): void {
   initNav(scroll, loop)
   initReveal()
   initContentSections({ scroll, loop })
+
+  /* ═══════════ 2D 特效层：粒子 + 小豆包 + 鼠标柔光 ═══════════
+     刻意放在阶段 1：它是"会回应你"的部分，不该等 244KB 的 three。
+     用户滚到首屏第一下点击就能得到反馈，哪怕 3D 还没进场。          */
+  const fx = createStage2d()
+
+  if (fx) {
+    loop.add((dt, elapsed) => {
+      fx.update(dt, elapsed)
+      fx.draw()
+    })
+
+    window.addEventListener(
+      'pointermove',
+      (event) => fx.pointer(event.clientX, event.clientY),
+      { passive: true },
+    )
+
+    // 键盘：五声音阶 + 光标处炸一小簇。输入框里打字不算（那边走 askbar 的轻反馈）
+    let keyPresses = 0
+    window.addEventListener('keydown', (event) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, [contenteditable]')) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.key.length !== 1 && event.key !== ' ') return
+      keyPresses += 1
+      fx.audio.unlock()
+      fx.react('key')
+    })
+
+    // 点击：点到小豆包 → 挤压 + "啵"；点到别处 → 一小簇 + 一个音
+    window.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target as HTMLElement | null
+        if (target?.closest('a, button, input, [data-no-pinch]')) return
+        const { clientX: x, clientY: y } = event
+        fx.mascot.hit(x, y) ? fx.react('mascot', x, y) : fx.react('tap', x, y)
+      },
+      { passive: true },
+    )
+
+    // 音效开关
+    const soundBtn = document.getElementById('soundToggle')
+    const syncSound = (): void => {
+      const muted = fx.audio.muted
+      soundBtn?.setAttribute('aria-pressed', String(!muted))
+      document.documentElement.classList.toggle('sound-off', muted)
+    }
+    soundBtn?.addEventListener('click', () => {
+      fx.audio.toggleMute()
+      syncSound()
+    })
+    syncSound()
+
+    // 首屏输入条：全站唯一的"会回应你"入口
+    initAskbar({
+      onFirstGesture: () => fx.audio.unlock(),
+      onType: () => fx.audio.note(2 + ((Math.random() * 3) | 0), { vol: 0.045 }),
+      onSend: (_text, x, y) => fx.react('send', x, y),
+    })
+
+    // 页脚烟花
+    document.getElementById('fireBtn')?.addEventListener('click', () => {
+      fx.audio.unlock()
+      fx.react('cheer')
+    })
+  }
 
   ScrollTrigger.addEventListener('refresh', () => anchorMap.refresh())
   const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
@@ -184,7 +254,6 @@ function boot(): void {
     let longPressTimer = 0
     let lastPressing = false
     let whisperTimer = 0
-    let audioContext: AudioContext | null = null
 
     const say = (text: string): void => {
       if (!whisper) return
@@ -193,21 +262,9 @@ function boot(): void {
       window.clearTimeout(whisperTimer)
       whisperTimer = window.setTimeout(() => whisper.classList.remove('is-visible'), 1500)
     }
-    const blip = (pitch = 520): void => {
-      try {
-        audioContext ??= new AudioContext()
-        const osc = audioContext.createOscillator()
-        const gain = audioContext.createGain()
-        osc.type = 'sine'
-        osc.frequency.value = pitch
-        gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
-        gain.gain.exponentialRampToValueAtTime(0.045, audioContext.currentTime + 0.012)
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.13)
-        osc.connect(gain).connect(audioContext.destination)
-        osc.start()
-        osc.stop(audioContext.currentTime + 0.14)
-      } catch { /* 浏览器禁止自动音频时静默降级 */ }
-    }
+    // 音效统一走 fx.audio（五声音阶 + 压缩器 + 全局静音），这里只留一个薄壳
+    const blip = (pitch = 520): void => fx?.audio.blip(pitch)
+
     const updateHud = (node: number): void => {
       const part = Math.min(5, Math.max(1, node + 1))
       const labels = ['FACE', 'NECK', 'SHAPE', 'WAIST', 'FEET']
@@ -283,12 +340,11 @@ function boot(): void {
       const target = event.target as HTMLElement | null
       if (target?.closest('a, button, [data-no-pinch]')) return
       const framing = rig.framing
+      // 音效由 fx 层统一负责（阶段 1），这里只出文字
       if (framing < PINCH_GATE && hoveringFace) {
         say('轻一点。')
-        blip(440)
       } else if (framing > 0.72) {
         say(framing > 0.9 ? '脚也看到了。' : '镜头还在继续。')
-        blip(620)
       }
     }, { passive: true })
 
@@ -337,7 +393,10 @@ function boot(): void {
         character.update(dt)
       }
 
-      if (pressing && !lastPressing) blip(360)
+      if (pressing && !lastPressing) {
+        blip(360)
+        if (hoveringFace) fx?.react('pinch', ringX.value, ringY.value)
+      }
       lastPressing = pressing
       if (canvas) {
         const breathe = Math.sin(performance.now() * 0.00135) * 0.7
@@ -378,7 +437,8 @@ function boot(): void {
         lastNode = rig.nodeIndex
         rail.setActive(lastNode)
         updateHud(lastNode)
-        if (lastNode > 0) blip(500 + lastNode * 38)
+        // 小豆包换到立绘的另一侧 + 一圈声波 + 一个音
+        fx?.setNode(lastNode)
       }
 
       updateQuality(dt)
@@ -393,6 +453,7 @@ function boot(): void {
     /* ---- resize ---- */
     let resizeTimer = 0
     window.addEventListener('resize', () => {
+      fx?.resize()
       stage.resize()
       rig.resize()
       anchorMap.refresh()
@@ -455,6 +516,7 @@ function boot(): void {
     Object.assign(window, {
       __DOUBAO: {
         stage,
+        fx,
         scroll,
         rig,
         anchorMap,
