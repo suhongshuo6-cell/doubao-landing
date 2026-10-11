@@ -30,7 +30,7 @@ export function initProgressRail(
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'rail__btn'
-    button.textContent = node.label
+    button.innerHTML = `<i class="rail__ring" aria-hidden="true"></i><span>${node.label}</span>`
     button.setAttribute('aria-label', `跳转到：${node.label}`)
     button.addEventListener('click', () => {
       scroll.scrollTo(map.toScroll(node.t), { duration: 1.15 })
@@ -54,6 +54,14 @@ export function initProgressRail(
     active = index
     items.forEach((item, i) => item.classList.toggle('is-active', i === index))
     buttons.forEach((btn, i) => btn.setAttribute('aria-current', i === index ? 'true' : 'false'))
+    const ring = items[index]?.querySelector<HTMLElement>('.rail__ring')
+    if (ring) {
+      gsap.fromTo(
+        ring,
+        { scale: 0.5, opacity: 0.9 },
+        { scale: 2.2, opacity: 0, duration: 0.75, ease: 'power2.out' },
+      )
+    }
     if (indicator) {
       const phase = FRAMING_NODES[index]?.phase ?? 'product'
       indicator.dataset.phase = phase
