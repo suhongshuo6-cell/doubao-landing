@@ -509,11 +509,14 @@ export function initCapabilityDemos({ loop }: CapabilityDemoOptions): () => void
     return () => stopSpring()
   }
 
+  const byCap = (id: string): HTMLElement | undefined =>
+    Array.from(cards).find((c) => c.dataset.cap === id)
+
   const stops = [
-    cards[0] ? dialogDemo(cards[0]) : () => undefined,
-    cards[1] ? fileDemo(cards[1]) : () => undefined,
-    cards[2] ? imageDemo(cards[2]) : () => undefined,
-    cards[3] ? voiceDemo(cards[3], loop) : () => undefined,
+    byCap('dialog') ? dialogDemo(byCap('dialog')!) : () => undefined,
+    byCap('file') ? fileDemo(byCap('file')!) : () => undefined,
+    byCap('image') ? imageDemo(byCap('image')!) : () => undefined,
+    byCap('voice') ? voiceDemo(byCap('voice')!, loop) : () => undefined,
   ]
 
   return () => {
