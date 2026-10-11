@@ -5,7 +5,7 @@
  * 不再自绘橘色/双马尾 canvas 小人。
  */
 
-const AVATAR_SRC = '/img/doubao-official-chibi.png'
+const AVATAR_SRC = `${import.meta.env.BASE_URL}img/doubao-official-chibi.png`
 
 export interface Mascot {
   setAnchor(x: number, y: number, scale: number): void
