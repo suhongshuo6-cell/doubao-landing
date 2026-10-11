@@ -53,6 +53,8 @@ export interface PlateUniforms {
   uLids: { value: THREE.Vector4 }
   uGaze: { value: THREE.Vector2 }
   uMouthOpen: { value: number }
+  /** 微笑强度 0→1：嘴角上扬 + 上齿细条 */
+  uSmile: { value: number }
   uBlush: { value: number }
   uCheekL: { value: THREE.Vector4 }
   uCheekR: { value: THREE.Vector4 }
@@ -89,6 +91,7 @@ export function createPlateUniforms(): PlateUniforms {
     uLids: { value: new THREE.Vector4() },
     uGaze: { value: new THREE.Vector2() },
     uMouthOpen: { value: 0 },
+    uSmile: { value: 0 },
     uBlush: { value: 0 },
     uCheekL: { value: new THREE.Vector4(0, 0, 1, 1) },
     uCheekR: { value: new THREE.Vector4(0, 0, 1, 1) },
@@ -132,6 +135,7 @@ const FRAGMENT = /* glsl */ `
   uniform vec4 uLids;
   uniform vec2 uGaze;
   uniform float uMouthOpen;
+  uniform float uSmile;
   uniform float uBlush;
   uniform vec4 uCheekL;
   uniform vec4 uCheekR;
@@ -201,22 +205,26 @@ const FRAGMENT = /* glsl */ `
     return s;
   }
 
-  // 说话 = 沿唇缝把下唇向下推、上唇微微上提，中间露出口腔暗色。
+  // 说话 / 微笑 = 沿唇缝把下唇向下推、上唇微微上提；微笑时嘴角上扬并露柔和上齿细条。
   vec2 mouthWarp(vec2 p, inout vec4 inner, inout float lipShade) {
-    if (uMouthOpen < 0.05 || p.x <= uMouthRange.x || p.x >= uMouthRange.y) return p;
+    float smile = clamp(uSmile, 0.0, 1.0);
+    float openPx = uMouthOpen + smile * 5.2; // 开心时轻微分唇
+    if (openPx < 0.04 || p.x <= uMouthRange.x || p.x >= uMouthRange.y) return p;
     float mid = (uMouthRange.x + uMouthRange.y) * 0.5;
     float hw = (uMouthRange.y - uMouthRange.x) * 0.5;
     float u = (p.x - mid) / hw;
     float w = clamp(1.0 - u * u, 0.0, 1.0);
-    // 开口两头收尖：中间最大，嘴角几乎不动
-    float g = uMouthOpen * pow(w, 1.7);
-    float up = g * 0.45;
+    // 开口两头收尖：中间最大，嘴角几乎不动；微笑略加宽中段
+    float g = openPx * pow(w, mix(1.7, 1.35, smile));
+    float up = g * mix(0.45, 0.55, smile);
     float seam = quadAt(uMouthQ, p.x);
+    // 微笑：嘴角上扬（图像 y 向下，|u| 大处 seam 减小）
+    seam -= smile * 7.5 * pow(abs(u), 1.55);
     const float RD = 70.0;   // 下唇 + 下巴参与形变的高度
     const float RU = 40.0;   // 上唇参与形变的高度
     vec2 s = p;
     if (p.y > seam - RU && p.y < seam - up) {
-      float t = (p.y - (seam - RU)) / (RU - up);
+      float t = (p.y - (seam - RU)) / max(RU - up, 0.001);
       s.y = seam - RU + t * RU;
       lipShade = max(lipShade, smoothstep(seam - up - 4.0, seam - up, p.y) * smoothstep(1.0, 5.0, g));
     } else if (p.y >= seam - up && p.y < seam + g) {
@@ -226,15 +234,21 @@ const FRAGMENT = /* glsl */ `
       vec3 warm = vec3(0.42, 0.16, 0.16);
       // 口腔：上下缘偏暖（唇内侧），中间最深
       vec3 col = mix(warm, dark, smoothstep(0.0, 0.5, tg) * smoothstep(1.0, 0.55, tg));
-      // 张得够大时上缘露一点上齿
-      vec3 teeth = vec3(0.78, 0.70, 0.67);
-      col = mix(col, teeth, (1.0 - smoothstep(0.0, 0.32, tg)) * smoothstep(4.5, 8.0, span) * smoothstep(0.35, 0.8, w) * 0.75);
+      // 上齿：柔和偏白细条（非卡通），微笑 / 轻说话即可露出
+      vec3 teeth = vec3(0.93, 0.91, 0.88);
+      float teethBand = (1.0 - smoothstep(0.0, mix(0.28, 0.38, smile), tg));
+      float teethOpen = smoothstep(mix(3.2, 2.0, smile), mix(6.5, 4.5, smile), span);
+      float teethW = smoothstep(0.18, 0.72, w);
+      float teethAmt = teethBand * teethOpen * teethW * mix(0.55, 0.82, smile);
+      // 轻说话（无微笑）也留一丝上齿
+      teethAmt = max(teethAmt, teethBand * smoothstep(3.8, 7.0, span) * teethW * 0.45);
+      col = mix(col, teeth, clamp(teethAmt, 0.0, 0.85));
       float e = min(p.y - (seam - up), seam + g - p.y);
       float edge = smoothstep(-0.3, 1.6, e);
       inner = vec4(col, edge * smoothstep(0.0, 0.25, w) * smoothstep(0.4, 2.0, span));
       s.y = seam;
     } else if (p.y >= seam + g && p.y < seam + RD) {
-      float t = (p.y - (seam + g)) / (RD - g);
+      float t = (p.y - (seam + g)) / max(RD - g, 0.001);
       s.y = seam + t * RD;
       lipShade = max(lipShade, (1.0 - smoothstep(seam + g, seam + g + 4.0, p.y)) * smoothstep(1.0, 5.0, g));
     }

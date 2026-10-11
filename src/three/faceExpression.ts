@@ -346,23 +346,30 @@ export class FaceExpression {
       const pulse = 0.15 + 0.55 * this.streamPulse
       mouthTarget = clamp((0.28 + 0.72 * syl) * gate + pulse * syl, 0, 1.15) * (reduced ? 0.5 : 1)
     }
-    this.mouth = f === 'talk'
-      ? expApproach(this.mouth, mouthTarget, 18, dt)
-      : expApproach(this.mouth, mouthTarget, 20, dt)
-    u.uMouthOpen.value = this.mouth * FACE_EXPR.mouthOpenPx
-
-    // ---------------- 开心 / 听 / 想 → 眼睑 + 腮红 ----------------
+    // ---------------- 开心 / 听 / 想 → 眼睑 + 腮红 + 微笑嘴形 ----------------
     let happyTarget = 0
     if (f === 'happy') happyTarget = 1
     else if (this.happyHold > 0) { this.happyHold -= dt; happyTarget = 1 }
     this.happy = f ? happyTarget : expApproach(this.happy, happyTarget, happyTarget > this.happy ? 10 : 2.0, dt)
     const h = this.happy
-    const squint = h * 0.4 + this.listen * 0.08
-    const raise = h * 17 + this.listen * 4
+
+    // 微笑时轻微分唇（让上齿细条可见）；与说话开合取较大值
+    if (h > 0.01 && f !== 'talk') {
+      mouthTarget = Math.max(mouthTarget, h * 0.38)
+    }
+
+    this.mouth = f === 'talk'
+      ? expApproach(this.mouth, mouthTarget, 18, dt)
+      : expApproach(this.mouth, mouthTarget, 20, dt)
+    u.uMouthOpen.value = this.mouth * FACE_EXPR.mouthOpenPx
+    u.uSmile.value = h
+
+    const squint = h * 0.42 + this.listen * 0.08
+    const raise = h * 18 + this.listen * 4
     const lidsL = Math.min(1, Math.max(this.closeL, squint + this.closeL * (1 - squint)))
     const lidsR = Math.min(1, Math.max(this.closeR, squint * 0.95 + this.closeR * (1 - squint)))
     u.uLids.value.set(lidsL, lidsR, raise, 0)
-    u.uBlush.value = clamp(h * 1.25 + this.listen * 0.18, 0, 1.35)
+    u.uBlush.value = clamp(h * 1.28 + this.listen * 0.18, 0, 1.35)
   }
 
   dispose(): void {

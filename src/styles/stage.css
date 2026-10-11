@@ -98,8 +98,8 @@ html[data-chapter='hear'] .stage {
   position: relative;
   min-height: 100svh;
   display: grid;
-  place-items: center;
-  padding: calc(var(--nav-h) + 24px) var(--gutter) 72px;
+  place-items: end center; /* 甲板沉底，露出眼鼻 */
+  padding: calc(var(--nav-h) + 24px) var(--gutter) clamp(36px, 6vh, 64px);
   overflow: clip;
 }
 .s-cmd__wash {
@@ -134,15 +134,16 @@ html.intro-done .orbit-chip { opacity: 1; }
 
 .command-deck {
   position: relative; z-index: 3;
-  width: min(720px, 100%);
-  padding: 28px 28px 22px;
-  border-radius: 28px;
+  width: min(480px, 100%);
+  padding: 12px 14px 12px;
+  border-radius: 22px;
   background: color-mix(in srgb, #fff 86%, transparent);
   border: 1px solid color-mix(in srgb, #fff 70%, var(--hairline));
   box-shadow: var(--shadow-2), 0 0 0 1px var(--panel-edge) inset;
   backdrop-filter: blur(18px) saturate(1.1);
   opacity: 0;
   transform: translateY(24px);
+  margin-bottom: clamp(4px, 1vh, 12px);
 }
 html.intro-done .command-deck,
 html.intro-playing .command-deck { opacity: 1; transform: none; }
@@ -155,43 +156,55 @@ html.intro-playing .command-deck { opacity: 1; transform: none; }
   100% { box-shadow: var(--shadow-2); }
 }
 
-/* 大屏：命令甲板略下移，露出嘴部说话形变（表情系统） */
-@media (min-width: 1200px) and (min-height: 780px) {
+/* 大屏：紧凑底栏，眼/鼻/嘴留在甲板上方 */
+@media (min-width: 1100px) and (min-height: 720px) {
+  .s-cmd {
+    padding-bottom: clamp(16px, 2.8vh, 32px);
+  }
   .command-deck {
-    transform: translateY(min(88px, 11vh));
+    width: min(440px, 90vw);
+    padding: 10px 12px 10px;
   }
-  html.intro-done .command-deck,
-  html.intro-playing .command-deck {
-    transform: translateY(min(88px, 11vh));
+  .s-cmd[data-frame='frame-idle'] .command-deck__claim {
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    margin-bottom: 4px;
   }
-  html.intro-done .command-deck.is-pulse,
-  html.intro-playing .command-deck.is-pulse {
-    animation: deck-pulse-down 0.55s var(--ease-spring);
+  .s-cmd[data-frame='frame-idle'] .command-panel {
+    /* idle 提示并入视觉上一条，弱化「第二对话框」 */
+    min-height: 0;
+    padding: 4px 8px;
+    margin-bottom: 6px;
+    background: transparent;
+    border-color: transparent;
   }
+  .s-cmd[data-frame='frame-idle'] .cmd-idle {
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .s-cmd .command-seeds { margin-top: 8px; gap: 6px; }
+  .s-cmd .command-seed { padding: 6px 11px; font-size: 12px; }
 }
-@keyframes deck-pulse-down {
-  0% { box-shadow: var(--shadow-2), 0 0 0 0 var(--brand-a25); transform: translateY(min(88px, 11vh)); }
-  50% { box-shadow: var(--shadow-2), 0 0 0 12px transparent; transform: translateY(min(88px, 11vh)); }
-  100% { box-shadow: var(--shadow-2); transform: translateY(min(88px, 11vh)); }
-}
+
+/* UX: 撤销 +88px/11vh 下推——大屏反而把甲板盖住脸中心。改用下方紧凑 dock。 */
 
 
 .command-deck__kicker {
   font-size: 12px; letter-spacing: .12em; color: var(--brand); margin-bottom: 10px;
 }
 .command-deck__claim {
-  font-size: clamp(1.8rem, 4.5vw, 2.85rem);
-  line-height: 1.15; letter-spacing: var(--ls-display);
-  font-weight: 750; margin-bottom: 18px;
+  font-size: clamp(1.15rem, 2.6vw, 1.45rem);
+  line-height: 1.25; letter-spacing: var(--ls-display);
+  font-weight: 750; margin-bottom: 8px;
 }
 .command-deck__claim .hero-char { display: inline-block; will-change: transform, opacity; }
 
 .command-panel {
-  min-height: 88px; margin-bottom: 16px;
-  padding: 14px 16px; border-radius: 18px;
+  min-height: 40px; margin-bottom: 8px;
+  padding: 8px 10px; border-radius: 12px;
   background: color-mix(in srgb, var(--bg-alt) 70%, #fff);
   border: 1px solid var(--hairline);
-  display: grid; align-content: center; gap: 10px;
+  display: grid; align-content: center; gap: 6px;
+  font-size: var(--fs-sm);
 }
 .cmd-idle, .cmd-replay-hint { color: var(--ink-3); font-size: var(--fs-sm); }
 .cmd-think { display: flex; gap: 6px; align-items: center; }
@@ -316,11 +329,40 @@ html.intro-playing .command-deck { opacity: 1; transform: none; }
   transform: translateY(-1px);
 }
 
-.s-cmd .hero__ask { margin-top: 4px; }
+/* 关键双重对话框：global.css 仍把 .hero__ask 绝对定位到底部，
+   会从 command-deck 文档流里脱出，叠在 .command-panel 上。这里强制回流。 */
+.s-cmd .hero__ask {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  max-width: none;
+  margin-top: 2px;
+  padding-inline: 0;
+  align-items: stretch;
+  pointer-events: none;
+  z-index: 2;
+}
+.s-cmd .hero__ask .askbar,
+.s-cmd .hero__ask .askbar__thread,
+.s-cmd .hero__ask .ask-followups,
+.s-cmd .hero__ask .askbar__reply,
+.s-cmd .hero__ask .ask-context,
+.s-cmd .hero__ask .connect-status {
+  pointer-events: auto;
+}
 .s-cmd .askbar {
+  width: 100%;
+  max-width: none;
   box-shadow: 0 10px 36px var(--brand-a12), var(--shadow-1);
   border-color: color-mix(in srgb, var(--brand) 22%, var(--hairline));
 }
+.s-cmd .askbar__thread {
+  max-height: 96px;
+}
+.s-cmd .command-seeds { margin-top: 10px; }
+.s-cmd .command-deck__kicker { margin-bottom: 6px; }
 .s-cmd__scroll {
   position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
